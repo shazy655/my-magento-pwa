@@ -150,6 +150,134 @@ class MagentoApiService {
   }
 
   /**
+   * Fetch stock item by SKU (REST)
+   * @param {string} sku
+   * @returns {Promise<{qty:number,is_in_stock:boolean}>}
+   */
+  async fetchStockBySku(sku) {
+    try {
+      const url = getCorsProxyUrl(
+        `${API_ENDPOINT}/stockItems/${encodeURIComponent(sku)}`,
+        USE_CORS_PROXY
+      );
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching stock for ${sku}:`, error);
+      throw new Error(`Failed to fetch stock for ${sku}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create guest cart and return masked cart ID (quote id)
+   * @returns {Promise<string>} masked cart id
+   */
+  async createGuestCart() {
+    try {
+      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts`, USE_CORS_PROXY);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const cartId = await response.json();
+      if (typeof cartId !== 'string' || !cartId) {
+        throw new Error('Invalid cart id');
+      }
+      return cartId;
+    } catch (error) {
+      console.error('Error creating guest cart:', error);
+      throw new Error(`Failed to create guest cart: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get or create a guest cart id stored in localStorage
+   * @returns {Promise<string>}
+   */
+  async getOrCreateGuestCartId() {
+    try {
+      const storageKey = 'guestCartId';
+      const existing = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null;
+      if (existing) {
+        return existing;
+      }
+      const newId = await this.createGuestCart();
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(storageKey, newId);
+      }
+      return newId;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Add an item to a guest cart
+   * @param {string} cartId - masked quote id
+   * @param {string} sku
+   * @param {number} qty
+   * @returns {Promise<Object>} cart item response
+   */
+  async addItemToGuestCart(cartId, sku, qty) {
+    try {
+      const url = getCorsProxyUrl(
+        `${API_ENDPOINT}/guest-carts/${encodeURIComponent(cartId)}/items`,
+        USE_CORS_PROXY
+      );
+
+      const body = {
+        cartItem: {
+          sku,
+          qty,
+          quote_id: cartId,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding item to guest cart:', error);
+      throw new Error(`Failed to add to cart: ${error.message}`);
+    }
+  }
+
+  /**
    * Get product image URL
    * @param {string} imagePath - Image path from product data
    * @returns {string} Full image URL

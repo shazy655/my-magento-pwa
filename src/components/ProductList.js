@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
 import './ProductList.css';
 
@@ -115,7 +116,12 @@ const ProductList = () => {
 
       <div className="product-grid">
         {products.map((product) => (
-          <div key={product.id} className="product-card">
+          <Link
+            key={product.id}
+            to={`/product/${encodeURIComponent(product.sku)}`}
+            className="product-card"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
             <div className="product-image">
               <img
                 src={getProductImage(product)}
@@ -136,7 +142,7 @@ const ProductList = () => {
                 <span className="product-status unavailable">Unavailable</span>
               )}
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

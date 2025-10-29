@@ -1,5 +1,7 @@
 import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 import ProductList from './components/ProductList';
+import ProductDetails from './components/ProductDetails';
 import './App.css';
 
 function App() {
@@ -12,7 +14,10 @@ function App() {
         </p>
       </header>
       <main className="App-main">
-        <ProductList />
+        <Routes>
+          <Route path="/" element={<ProductList />} />
+          <Route path="/product/:sku" element={<ProductDetails />} />
+        </Routes>
       </main>
     </div>
   );
