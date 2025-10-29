@@ -38,6 +38,20 @@ module.exports = {
     compress: true,
     port: 3000,
     open: true,
+    proxy: [
+      {
+        context: ['/magento2'],
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        logLevel: 'debug',
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+        },
+      },
+    ],
   },
   resolve: {
     extensions: ['.js', '.jsx'],

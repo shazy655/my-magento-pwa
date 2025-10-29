@@ -39,7 +39,21 @@ The application automatically applies these filters:
 
 ## CORS Handling
 
-For localhost connections, CORS proxy is disabled by default. For remote Magento instances, the application can use CORS proxy services if needed.
+The application handles CORS issues in multiple ways:
+
+### Development Mode
+- **Webpack Dev Server Proxy**: In development, the webpack dev server proxies requests to `/magento2` to `http://localhost:8080`, eliminating CORS issues
+- **Automatic Detection**: The application automatically detects development mode and uses proxied URLs
+
+### Production Mode
+- **CORS Proxy Services**: For remote Magento instances, the application can use CORS proxy services
+- **Direct Connection**: For localhost connections in production, direct API calls are made
+
+### Configuration
+The CORS handling is automatic and requires no manual configuration. The system:
+1. Detects if running in development mode (`NODE_ENV !== 'production'`)
+2. Uses webpack proxy for development (`/magento2/pub/graphql` → `http://localhost:8080/magento2/pub/graphql`)
+3. Falls back to CORS proxy services for remote production instances
 
 ## Development
 

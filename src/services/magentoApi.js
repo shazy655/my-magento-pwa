@@ -5,10 +5,12 @@
 
 import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
-const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
+// Use proxied URL in development, direct URL in production
+const isDevelopment = process.env.NODE_ENV !== 'production';
+const MAGENTO_BASE_URL = isDevelopment ? '/magento2/pub' : 'http://localhost:8080/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
 const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
-const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
+const USE_CORS_PROXY = !isDevelopment && needsCorsProxy(MAGENTO_BASE_URL);
 
 class MagentoApiService {
   /**
