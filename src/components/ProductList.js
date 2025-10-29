@@ -59,11 +59,21 @@ const ProductList = () => {
     }
     
     // Fallback to placeholder image
-    return 'http://localhost:3000/e-commerce.webp';
+    return '/e-commerce.webp';
   };
 
   const getProductPrice = (product) => {
-    return product.price ? magentoApi.formatPrice(product.price) : 'Price not available';
+    if (!product) return 'Price not available';
+    const currency = product.price_currency || 'USD';
+    // For configurable products show "From" minimum price
+    if (product.type === 'ConfigurableProduct') {
+      if (product.price_min != null) {
+        return `From ${magentoApi.formatPrice(product.price_min, currency)}`;
+      }
+    }
+    return product.price != null
+      ? magentoApi.formatPrice(product.price, currency)
+      : 'Price not available';
   };
 
   const handleProductClick = (sku) => {
@@ -140,10 +150,10 @@ const ProductList = () => {
               <h3 className="product-name">{product.name}</h3>
               <p className="product-sku">SKU: {product.sku}</p>
               <p className="product-price">{getProductPrice(product)}</p>
-              {product.status === 1 && (
+              {product.stock_status === 'IN_STOCK' && (
                 <span className="product-status available">Available</span>
               )}
-              {product.status !== 1 && (
+              {product.stock_status !== 'IN_STOCK' && (
                 <span className="product-status unavailable">Unavailable</span>
               )}
             </div>

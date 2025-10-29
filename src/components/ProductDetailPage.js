@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useHistory } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
 import './ProductDetailPage.css';
@@ -12,6 +12,8 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+  const [selectedOptions, setSelectedOptions] = useState({}); // { [optionId]: value_index }
+  const [selectionError, setSelectionError] = useState(null);
 
   useEffect(() => {
     fetchProductDetails();
@@ -23,6 +25,9 @@ const ProductDetailPage = () => {
       setError(null);
       const data = await magentoApi.getProductDetails(sku);
       setProduct(data);
+      setSelectedOptions({});
+      setSelectionError(null);
+      setCartMessage(null);
     } catch (err) {
       setError(err.message);
       console.error('Failed to fetch product details:', err);
@@ -31,13 +36,78 @@ const ProductDetailPage = () => {
     }
   };
 
+  const isConfigurable = useMemo(() => !!product?.configurable_options?.length, [product]);
+
+  const allOptionsSelected = useMemo(() => {
+    if (!isConfigurable) return true;
+    const requiredCount = product?.configurable_options?.length || 0;
+    return Object.keys(selectedOptions).length === requiredCount;
+  }, [isConfigurable, product, selectedOptions]);
+
+  const optionIdToCode = useMemo(() => {
+    const mapping = {};
+    if (product?.configurable_options) {
+      product.configurable_options.forEach(opt => {
+        mapping[opt.id] = opt.attribute_code;
+      });
+    }
+    return mapping;
+  }, [product]);
+
+  const selectedVariant = useMemo(() => {
+    if (!isConfigurable || !allOptionsSelected || !product?.variants) return null;
+    // Build a code -> value_index map from selectedOptions
+    const codeToValue = {};
+    Object.entries(selectedOptions).forEach(([id, value]) => {
+      const code = optionIdToCode[id];
+      if (code) codeToValue[code] = Number(value);
+    });
+    // Find variant whose attributes match all selections
+    return (
+      product.variants.find(variant => {
+        const attrs = variant.attributes || [];
+        return Object.entries(codeToValue).every(([code, val]) =>
+          attrs.some(a => a.code === code && Number(a.value_index) === Number(val))
+        );
+      }) || null
+    );
+  }, [isConfigurable, allOptionsSelected, product, optionIdToCode, selectedOptions]);
+
   const handleAddToCart = async () => {
     try {
       setAddingToCart(true);
       setCartMessage(null);
-      
-      await magentoApi.addToGuestCart(product.sku, quantity);
-      
+
+      if (isConfigurable) {
+        if (!allOptionsSelected) {
+          setSelectionError('Please select all options.');
+          return;
+        }
+        if (!selectedVariant?.product?.sku) {
+          setSelectionError('Selected variant not available.');
+          return;
+        }
+        if (selectedVariant?.product?.stock_status === 'OUT_OF_STOCK') {
+          setSelectionError('Selected variant is out of stock.');
+          return;
+        }
+
+        // Build configurable_options input
+        const configOptions = Object.entries(selectedOptions).map(([id, value]) => ({
+          id: Number(id),
+          value_id: Number(value),
+        }));
+
+        await magentoApi.addConfigurableToGuestCart(
+          product.sku,
+          selectedVariant.product.sku,
+          quantity,
+          configOptions
+        );
+      } else {
+        await magentoApi.addToGuestCart(product.sku, quantity);
+      }
+
       setCartMessage({
         type: 'success',
         text: `${product.name} has been added to your cart!`
@@ -94,6 +164,12 @@ const ProductDetailPage = () => {
 
   const isInStock = () => {
     return product?.stock_status === 'IN_STOCK';
+  };
+
+  const handleOptionChange = (optionId) => (e) => {
+    setSelectionError(null);
+    const value = e.target.value;
+    setSelectedOptions(prev => ({ ...prev, [optionId]: value }));
   };
 
   if (loading) {
@@ -202,6 +278,27 @@ const ProductDetailPage = () => {
 
           {isInStock() && (
             <div className="pdp-add-to-cart">
+              {isConfigurable && product.configurable_options?.length > 0 && (
+                <div className="configurable-options">
+                  {product.configurable_options.map((opt) => (
+                    <div className="configurable-option" key={opt.id}>
+                      <label htmlFor={`opt-${opt.id}`}>{opt.label}:</label>
+                      <select
+                        id={`opt-${opt.id}`}
+                        value={selectedOptions[opt.id] ?? ''}
+                        onChange={handleOptionChange(opt.id)}
+                        disabled={addingToCart}
+                      >
+                        <option value="" disabled>Select {opt.label}</option>
+                        {opt.values.map(v => (
+                          <option key={v.value_index} value={v.value_index}>{v.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                  {selectionError && <div className="option-error">{selectionError}</div>}
+                </div>
+              )}
               <div className="quantity-selector">
                 <label htmlFor="quantity">Quantity:</label>
                 <input
@@ -216,10 +313,10 @@ const ProductDetailPage = () => {
 
               <button
                 onClick={handleAddToCart}
-                disabled={addingToCart}
+                disabled={addingToCart || (isConfigurable && !allOptionsSelected)}
                 className="add-to-cart-button"
               >
-                {addingToCart ? 'Adding...' : 'Add to Cart'}
+                {addingToCart ? 'Adding...' : (isConfigurable && !allOptionsSelected ? 'Select Options' : 'Add to Cart')}
               </button>
             </div>
           )}

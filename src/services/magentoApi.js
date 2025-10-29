@@ -39,14 +39,20 @@ class MagentoApiService {
           ) {\
             total_count\
             items {\
+              __typename\
               id\
               name\
               sku\
-          
+              stock_status\
               small_image { url }\
               price_range {\
                 minimum_price {\
                   regular_price { value currency }\
+                  final_price { value currency }\
+                }\
+                maximum_price {\
+                  regular_price { value currency }\
+                  final_price { value currency }\
                 }\
               }\
             }\
@@ -82,17 +88,27 @@ class MagentoApiService {
 
       // Normalize to match existing UI expectations
       const normalizedItems = (products.items || []).map(item => {
-        const regularPrice = item?.price_range?.minimum_price?.regular_price;
+        const minRegular = item?.price_range?.minimum_price?.regular_price;
+        const minFinal = item?.price_range?.minimum_price?.final_price;
+        const maxRegular = item?.price_range?.maximum_price?.regular_price;
+        const maxFinal = item?.price_range?.maximum_price?.final_price;
         const imageUrl = item?.small_image?.url || null;
+
+        const currency = (minFinal?.currency || minRegular?.currency || 'USD');
 
         return {
           id: item.id,
           name: item.name,
           sku: item.sku,
+          type: item.__typename, // 'SimpleProduct' | 'ConfigurableProduct' | ...
           // Maintain existing UI expectations
-          price: regularPrice?.value ?? null,
-          price_currency: regularPrice?.currency ?? 'USD',
-          status: typeof item.status === 'number' ? item.status : 1,
+          price: minFinal?.value ?? minRegular?.value ?? null,
+          price_currency: currency,
+          price_min: minFinal?.value ?? null,
+          price_max: maxFinal?.value ?? null,
+          // Derive status from stock_status when available
+          status: item?.stock_status === 'IN_STOCK' ? 1 : 0,
+          stock_status: item?.stock_status || 'IN_STOCK',
           // Emulate REST media_gallery_entries so UI stays unchanged
           media_gallery_entries: imageUrl
             ? [
@@ -102,6 +118,7 @@ class MagentoApiService {
                 },
               ]
             : [],
+          price_currency_symbol: currency,
         };
       });
 
@@ -209,6 +226,7 @@ class MagentoApiService {
         query GetProduct($sku: String!) {\
           products(filter: { sku: { eq: $sku } }) {\
             items {\
+              __typename\
               id\
               name\
               sku\
@@ -227,13 +245,30 @@ class MagentoApiService {
                   final_price { value currency }\
                   discount { amount_off percent_off }\
                 }\
+                maximum_price {\
+                  regular_price { value currency }\
+                  final_price { value currency }\
+                }\
               }\
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
                     label\
+                    value_index\
+                  }\
+                }\
+                variants {\
+                  product {\
+                    sku\
+                    stock_status\
+                    small_image { url }\
+                    image { url }\
+                  }\
+                  attributes {\
+                    code\
                     value_index\
                   }\
                 }\
@@ -406,9 +441,78 @@ class MagentoApiService {
           return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
       } catch (error) {
           console.error('Error adding to guest cart:', error);
-          return [];
+          throw new Error(error.message || 'Failed to add to cart');
       }
 
+  }
+
+  /**
+   * Add configurable product to guest cart
+   * @param {string} parentSku - Configurable parent SKU
+   * @param {string} variantSku - Resolved simple variant SKU
+   * @param {number} quantity - Quantity to add
+   * @param {Array<{id:number,value_id:number}>} configurableOptions - Selected option pairs
+   * @returns {Promise<Array>} Cart items
+   */
+  async addConfigurableToGuestCart(parentSku, variantSku, quantity = 1, configurableOptions = []) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+        mutation AddConfigurableToCart($cartId: String!, $parentSku: String!, $variantSku: String!, $quantity: Float!, $configOptions: [ConfigurableProductOptionInput!]!) {
+          addConfigurableProductsToCart(
+            input: {
+              cart_id: $cartId
+              cart_items: [
+                {
+                  parent_sku: $parentSku
+                  data: { sku: $variantSku, quantity: $quantity }
+                  configurable_options: $configOptions
+                }
+              ]
+            }
+          ) {
+            cart {
+              items {
+                id
+                product { name sku }
+                quantity
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        cartId,
+        parentSku,
+        variantSku,
+        quantity,
+        configOptions: configurableOptions,
+      };
+
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query: mutation, variables }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors?.length) {
+        const message = result.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
+    } catch (error) {
+      console.error('Error adding configurable product to guest cart:', error);
+      throw new Error(error.message || 'Failed to add configurable product');
+    }
   }
 
   /**
