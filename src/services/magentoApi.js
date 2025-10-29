@@ -279,7 +279,58 @@ class MagentoApiService {
   }
 
   /**
-   * Create a guest cart
+   * Create an empty cart using GraphQL mutation
+   * @returns {Promise<string>} Cart ID (quote ID)
+   */
+  async createEmptyCart() {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `\
+        mutation {\
+          createEmptyCart\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const cartId = gql.data?.createEmptyCart;
+      
+      if (!cartId) {
+        throw new Error('Failed to create empty cart: No cart ID returned');
+      }
+
+      // Store cart ID in localStorage for persistence
+      localStorage.setItem('guest_cart_id', cartId);
+      return cartId;
+    } catch (error) {
+      console.error('Error creating empty cart (GraphQL):', error);
+      throw new Error(`Failed to create empty cart: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a guest cart using REST API (legacy method)
    * @returns {Promise<string>} Cart ID (quote ID)
    */
   async createGuestCart() {
@@ -311,12 +362,14 @@ class MagentoApiService {
 
   /**
    * Get or create a guest cart ID
+   * Uses GraphQL createEmptyCart mutation by default
+   * @param {boolean} useRestApi - If true, uses REST API instead of GraphQL (default: false)
    * @returns {Promise<string>} Cart ID
    */
-  async getGuestCartId() {
+  async getGuestCartId(useRestApi = false) {
     let cartId = localStorage.getItem('guest_cart_id');
     if (!cartId) {
-      cartId = await this.createGuestCart();
+      cartId = useRestApi ? await this.createGuestCart() : await this.createEmptyCart();
     }
     return cartId;
   }
