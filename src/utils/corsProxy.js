@@ -17,10 +17,18 @@ const CORS_PROXIES = [
  * @returns {string} Proxied URL or original URL
  */
 export const getCorsProxyUrl = (url, useCorsProxy = false) => {
-  if (!useCorsProxy || url.includes('localhost') || url.includes('127.0.0.1')) {
+  // Skip proxying if not requested, if URL is relative (same-origin),
+  // or if targeting localhost which should be handled via dev proxy
+  if (
+    !useCorsProxy ||
+    !url ||
+    url.startsWith('/') ||
+    url.includes('localhost') ||
+    url.includes('127.0.0.1')
+  ) {
     return url;
   }
-  
+
   // Use the first available CORS proxy
   return `${CORS_PROXIES[0]}${encodeURIComponent(url)}`;
 };
@@ -32,7 +40,7 @@ export const getCorsProxyUrl = (url, useCorsProxy = false) => {
  */
 export const needsCorsProxy = (baseUrl) => {
   // If running on localhost/127.0.0.1, CORS proxy is usually not needed
-  if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+  if (!baseUrl || baseUrl.startsWith('/') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
     return false;
   }
   

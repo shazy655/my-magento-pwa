@@ -5,7 +5,13 @@
 
 import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
-const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
+// Use a relative base during local development to leverage the devServer proxy
+const DEFAULT_BASE_URL = 'http://localhost:8080/magento2/pub';
+const DEV_PROXY_BASE_URL = '/magento-api';
+const isDevLocal = (typeof window !== 'undefined'
+  && window.location.hostname === 'localhost'
+  && window.location.port === '3000');
+const MAGENTO_BASE_URL = isDevLocal ? DEV_PROXY_BASE_URL : DEFAULT_BASE_URL;
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
 const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);

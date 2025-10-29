@@ -38,6 +38,14 @@ module.exports = {
     compress: true,
     port: 3000,
     open: true,
+    proxy: {
+      '/magento-api': {
+        target: 'http://localhost:8080/magento2/pub',
+        changeOrigin: true,
+        secure: false,
+        pathRewrite: { '^/magento-api': '' },
+      },
+    },
   },
   resolve: {
     extensions: ['.js', '.jsx'],
