@@ -34,8 +34,7 @@ class MagentoApiService {
             pageSize: $pageSize\
             currentPage: $currentPage\
             filter: {\
-              visibility: { eq: "4" }\
-              status: { eq: "1" }\
+            
             }\
           ) {\
             total_count\
@@ -43,7 +42,7 @@ class MagentoApiService {
               id\
               name\
               sku\
-              status\
+          
               small_image { url }\
               price_range {\
                 minimum_price {\

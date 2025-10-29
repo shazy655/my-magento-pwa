@@ -53,10 +53,11 @@ const ProductList = () => {
       if (mainImage && mainImage.file) {
         return magentoApi.getImageUrl(mainImage.file);
       }
+      return  false;
     }
     
     // Fallback to placeholder image
-    return 'https://via.placeholder.com/300x300?text=No+Image';
+    return 'http://localhost:3000/e-commerce.webp';
   };
 
   const getProductPrice = (product) => {
@@ -121,7 +122,7 @@ const ProductList = () => {
                 src={getProductImage(product)}
                 alt={product.name}
                 onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/300x300?text=No+Image';
+                  e.target.src = 'e-commerce.webp';
                 }}
               />
             </div>
