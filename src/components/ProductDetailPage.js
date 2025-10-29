@@ -12,6 +12,9 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+  const [selectedOptions, setSelectedOptions] = useState({});
+  const [variants, setVariants] = useState([]);
+  const [selectedVariant, setSelectedVariant] = useState(null);
 
   useEffect(() => {
     fetchProductDetails();
@@ -23,6 +26,12 @@ const ProductDetailPage = () => {
       setError(null);
       const data = await magentoApi.getProductDetails(sku);
       setProduct(data);
+      
+      // If it's a configurable product, fetch variants
+      if (data.__typename === 'ConfigurableProduct' || data.configurable_options) {
+        const productVariants = await magentoApi.getConfigurableProductVariants(sku);
+        setVariants(productVariants);
+      }
     } catch (err) {
       setError(err.message);
       console.error('Failed to fetch product details:', err);
@@ -36,7 +45,34 @@ const ProductDetailPage = () => {
       setAddingToCart(true);
       setCartMessage(null);
       
-      await magentoApi.addToGuestCart(product.sku, quantity);
+      const isConfigurable = product.__typename === 'ConfigurableProduct' || product.configurable_options;
+      
+      if (isConfigurable) {
+        // For configurable products, we need to validate that options are selected
+        if (!selectedVariant) {
+          setCartMessage({
+            type: 'error',
+            text: 'Please select all required options before adding to cart.'
+          });
+          return;
+        }
+        
+        // Convert selected options to the format expected by the API
+        const configurableOptions = Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
+          id: parseInt(optionId),
+          value_index: parseInt(valueIndex)
+        }));
+        
+        await magentoApi.addToGuestCart(
+          selectedVariant.product.sku, 
+          quantity, 
+          'configurable', 
+          configurableOptions
+        );
+      } else {
+        // For simple products
+        await magentoApi.addToGuestCart(product.sku, quantity, 'simple');
+      }
       
       setCartMessage({
         type: 'success',
@@ -63,6 +99,34 @@ const ProductDetailPage = () => {
     }
   };
 
+  const handleOptionChange = (optionId, valueIndex) => {
+    const newSelectedOptions = {
+      ...selectedOptions,
+      [optionId]: valueIndex
+    };
+    setSelectedOptions(newSelectedOptions);
+    
+    // Find the matching variant
+    const matchingVariant = variants.find(variant => {
+      return variant.attributes.every(attr => 
+        newSelectedOptions[attr.code] === attr.value_index
+      );
+    });
+    
+    setSelectedVariant(matchingVariant);
+  };
+
+  const isConfigurableProduct = () => {
+    return product?.__typename === 'ConfigurableProduct' || product?.configurable_options;
+  };
+
+  const getCurrentPrice = () => {
+    if (isConfigurableProduct() && selectedVariant) {
+      return selectedVariant.product.price_range?.minimum_price;
+    }
+    return product?.price_range?.minimum_price;
+  };
+
   const getProductImage = () => {
     if (product?.image?.url) {
       return product.image.url;
@@ -77,7 +141,7 @@ const ProductDetailPage = () => {
   };
 
   const getPrice = () => {
-    const priceData = product?.price_range?.minimum_price;
+    const priceData = getCurrentPrice();
     if (!priceData) return null;
 
     const regularPrice = priceData.regular_price;
@@ -198,6 +262,38 @@ const ProductDetailPage = () => {
               className="pdp-short-description"
               dangerouslySetInnerHTML={{ __html: product.short_description.html }}
             />
+          )}
+
+          {/* Configurable Product Options */}
+          {isConfigurableProduct() && product.configurable_options && (
+            <div className="pdp-configurable-options">
+              <h3>Select Options</h3>
+              {product.configurable_options.map((option) => (
+                <div key={option.id} className="configurable-option">
+                  <label htmlFor={`option-${option.id}`}>{option.label}:</label>
+                  <select
+                    id={`option-${option.id}`}
+                    value={selectedOptions[option.id] || ''}
+                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                    className="option-select"
+                  >
+                    <option value="">Please select...</option>
+                    {option.values.map((value) => (
+                      <option key={value.value_index} value={value.value_index}>
+                        {value.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+              
+              {selectedVariant && (
+                <div className="selected-variant-info">
+                  <p><strong>Selected:</strong> {selectedVariant.product.name}</p>
+                  <p><strong>SKU:</strong> {selectedVariant.product.sku}</p>
+                </div>
+              )}
+            </div>
           )}
 
           {isInStock() && (

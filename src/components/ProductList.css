@@ -88,6 +88,32 @@
   margin: 0 0 10px 0;
 }
 
+.product-type {
+  margin: 8px 0;
+}
+
+.product-type-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.product-type-badge.simple {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.product-type-badge.configurable {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+  border: 1px solid #ce93d8;
+}
+
 .product-status {
   display: inline-block;
   padding: 4px 8px;

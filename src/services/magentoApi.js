@@ -89,6 +89,7 @@ class MagentoApiService {
           id: item.id,
           name: item.name,
           sku: item.sku,
+          productType: item.__typename || 'SimpleProduct',
           // Maintain existing UI expectations
           price: regularPrice?.value ?? null,
           price_currency: regularPrice?.currency ?? 'USD',
@@ -102,6 +103,8 @@ class MagentoApiService {
                 },
               ]
             : [],
+          // Add configurable options for configurable products
+          configurable_options: item.configurable_options || null,
         };
       });
 
@@ -349,41 +352,90 @@ class MagentoApiService {
    * Add item to guest cart
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
+   * @param {string} productType - Product type (simple, configurable, etc.)
+   * @param {Object} configurableOptions - Configurable product options (for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
-  async addToGuestCart(sku, quantity = 1) {
+  async addToGuestCart(sku, quantity = 1, productType = 'simple', configurableOptions = null) {
       try {
           const cartId = await this.getGuestCartId();
-          const mutation = `
-    mutation AddToCart($cartId: String!, $sku: String!, $quantity: Float!) {
-      addSimpleProductsToCart(
-        input: {
-          cart_id: $cartId
-          cart_items: [
-            {
-              data: {
-                sku: $sku
-                quantity: $quantity
+          
+          // Determine which mutation to use based on product type
+          let mutation, variables;
+          
+          if (productType === 'configurable' && configurableOptions) {
+              // For configurable products, we need to add the selected variant
+              mutation = `
+        mutation AddConfigurableProductToCart($cartId: String!, $sku: String!, $quantity: Float!, $configurableOptions: [ConfigurableProductOptionInput!]!) {
+          addConfigurableProductsToCart(
+            input: {
+              cart_id: $cartId
+              cart_items: [
+                {
+                  data: {
+                    sku: $sku
+                    quantity: $quantity
+                  }
+                  configurable_options: $configurableOptions
+                }
+              ]
+            }
+          ) {
+            cart {
+              items {
+                id
+                product {
+                  name
+                  sku
+                }
+                quantity
+                ... on ConfigurableCartItem {
+                  configurable_options {
+                    id
+                    option_label
+                    value_id
+                    value_label
+                  }
+                }
               }
             }
-          ]
-        }
-      ) {
-        cart {
-          items {
-            id
-            product {
-              name
-              sku
-            }
-            quantity
           }
         }
-      }
-    }
-  `;
+      `;
+              variables = { cartId, sku, quantity, configurableOptions };
+          } else {
+              // For simple products
+              mutation = `
+        mutation AddSimpleProductToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+          addSimpleProductsToCart(
+            input: {
+              cart_id: $cartId
+              cart_items: [
+                {
+                  data: {
+                    sku: $sku
+                    quantity: $quantity
+                  }
+                }
+              ]
+            }
+          ) {
+            cart {
+              items {
+                id
+                product {
+                  name
+                  sku
+                }
+                quantity
+              }
+            }
+          }
+        }
+      `;
+              variables = { cartId, sku, quantity };
+          }
 
-          const variables = { cartId, sku, quantity };
           const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
           const response = await fetch(url, {
@@ -403,12 +455,121 @@ class MagentoApiService {
               throw new Error(message);
           }
 
-          return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
+          // Return the appropriate cart items based on product type
+          if (productType === 'configurable') {
+              return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
+          } else {
+              return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
+          }
       } catch (error) {
           console.error('Error adding to guest cart:', error);
-          return [];
+          throw error; // Re-throw to allow proper error handling in UI
+      }
+  }
+
+  /**
+   * Get configurable product variants
+   * @param {string} sku - Configurable product SKU
+   * @returns {Promise<Array>} Available variants
+   */
+  async getConfigurableProductVariants(sku) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const query = `\\
+        query GetConfigurableProduct($sku: String!) {\\
+          products(filter: { sku: { eq: $sku } }) {\\
+            items {\\
+              ... on ConfigurableProduct {\\
+                variants {\\
+                  product {\\
+                    sku\\
+              __typename\\
+              __typename\\
+                    name\\
+                    price_range {\\
+                      minimum_price {\\
+                        regular_price { value currency }\\
+                        final_price { value currency }\\
+                      }\\
+                    }\\
+                    small_image { url }\\
+                  }\\
+                  attributes {\\
+                    code\\
+                    value_index\\
+                    label\\
+                  }\\
+                }\\
+              }\\
+              ... on ConfigurableProduct {\\
+                configurable_options {\\
+                  id\\
+                  label\\
+                  values {\\
+                    label\\
+                    value_index\\
+                  }\\
+                }\\
+              }\\
+              ... on ConfigurableProduct {\\
+                configurable_options {\\
+                  id\\
+                  label\\
+                  values {\\
+                    label\\
+                    value_index\\
+                  }\\
+                }\\
+              }\\
+              ... on ConfigurableProduct {\\
+                configurable_options {\\
+                  id\\
+                  label\\
+                  values {\\
+                    label\\
+                    value_index\\
+                  }\\
+                }\\
+              }\\
+            }\\
+          }\\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query,
+          variables: { sku },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const products = gql.data?.products?.items || [];
+      if (products.length === 0) {
+        return [];
+      }
+
+      return products[0].variants || [];
+    } catch (error) {
+      console.error(`Error fetching configurable product variants for ${sku}:`, error);
+      return [];
+    }
   }
 
   /**

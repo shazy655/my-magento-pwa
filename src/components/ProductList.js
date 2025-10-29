@@ -140,6 +140,13 @@ const ProductList = () => {
               <h3 className="product-name">{product.name}</h3>
               <p className="product-sku">SKU: {product.sku}</p>
               <p className="product-price">{getProductPrice(product)}</p>
+              <div className="product-type">
+                {product.productType === 'ConfigurableProduct' ? (
+                  <span className="product-type-badge configurable">Configurable</span>
+                ) : (
+                  <span className="product-type-badge simple">Simple</span>
+                )}
+              </div>
               {product.status === 1 && (
                 <span className="product-status available">Available</span>
               )}
