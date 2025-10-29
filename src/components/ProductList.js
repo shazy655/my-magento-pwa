@@ -63,7 +63,22 @@ const ProductList = () => {
   };
 
   const getProductPrice = (product) => {
-    return product.price ? magentoApi.formatPrice(product.price) : 'Price not available';
+    if (product.final_price && product.final_price !== product.price) {
+      return (
+        <div className="price-container">
+          <span className="regular-price">{magentoApi.formatPrice(product.price, product.price_currency)}</span>
+          <span className="final-price">{magentoApi.formatPrice(product.final_price, product.price_currency)}</span>
+        </div>
+      );
+    }
+    return product.price ? magentoApi.formatPrice(product.price, product.price_currency) : 'Price not available';
+  };
+
+  const getProductTypeLabel = (product) => {
+    if (product.type === 'ConfigurableProduct') {
+      return <span className="product-type configurable">Configurable</span>;
+    }
+    return <span className="product-type simple">Simple</span>;
   };
 
   const handleProductClick = (sku) => {
@@ -139,20 +154,16 @@ const ProductList = () => {
             <div className="product-info">
               <h3 className="product-name">{product.name}</h3>
               <p className="product-sku">SKU: {product.sku}</p>
-              <p className="product-price">{getProductPrice(product)}</p>
-              <div className="product-type">
-                {product.productType === 'ConfigurableProduct' ? (
-                  <span className="product-type-badge configurable">Configurable</span>
-                ) : (
-                  <span className="product-type-badge simple">Simple</span>
+              <div className="product-price">{getProductPrice(product)}</div>
+              <div className="product-meta">
+                {getProductTypeLabel(product)}
+                {product.status === 1 && (
+                  <span className="product-status available">Available</span>
+                )}
+                {product.status !== 1 && (
+                  <span className="product-status unavailable">Unavailable</span>
                 )}
               </div>
-              {product.status === 1 && (
-                <span className="product-status available">Available</span>
-              )}
-              {product.status !== 1 && (
-                <span className="product-status unavailable">Unavailable</span>
-              )}
             </div>
           </div>
         ))}

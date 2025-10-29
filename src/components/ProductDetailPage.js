@@ -13,7 +13,6 @@ const ProductDetailPage = () => {
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
   const [selectedOptions, setSelectedOptions] = useState({});
-  const [variants, setVariants] = useState([]);
   const [selectedVariant, setSelectedVariant] = useState(null);
 
   useEffect(() => {
@@ -45,34 +44,30 @@ const ProductDetailPage = () => {
       setAddingToCart(true);
       setCartMessage(null);
       
-      const isConfigurable = product.__typename === 'ConfigurableProduct' || product.configurable_options;
-      
-      if (isConfigurable) {
-        // For configurable products, we need to validate that options are selected
-        if (!selectedVariant) {
+      // Check if it's a configurable product and all options are selected
+      if (product.__typename === 'ConfigurableProduct') {
+        const missingOptions = product.configurable_options?.filter(option => 
+          !selectedOptions[option.id]
+        );
+        
+        if (missingOptions && missingOptions.length > 0) {
           setCartMessage({
             type: 'error',
-            text: 'Please select all required options before adding to cart.'
+            text: `Please select all options: ${missingOptions.map(opt => opt.label).join(', ')}`
           });
           return;
         }
-        
-        // Convert selected options to the format expected by the API
-        const configurableOptions = Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
-          id: parseInt(optionId),
-          value_index: parseInt(valueIndex)
-        }));
-        
-        await magentoApi.addToGuestCart(
-          selectedVariant.product.sku, 
-          quantity, 
-          'configurable', 
-          configurableOptions
-        );
-      } else {
-        // For simple products
-        await magentoApi.addToGuestCart(product.sku, quantity, 'simple');
       }
+      
+      const productType = product.__typename || 'SimpleProduct';
+      const options = productType === 'ConfigurableProduct' 
+        ? Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
+            id: parseInt(optionId),
+            value_index: parseInt(valueIndex)
+          }))
+        : [];
+      
+      await magentoApi.addToGuestCart(product.sku, quantity, productType, options);
       
       setCartMessage({
         type: 'success',
@@ -100,31 +95,37 @@ const ProductDetailPage = () => {
   };
 
   const handleOptionChange = (optionId, valueIndex) => {
-    const newSelectedOptions = {
-      ...selectedOptions,
+    setSelectedOptions(prev => ({
+      ...prev,
       [optionId]: valueIndex
-    };
-    setSelectedOptions(newSelectedOptions);
+    }));
     
-    // Find the matching variant
-    const matchingVariant = variants.find(variant => {
-      return variant.attributes.every(attr => 
-        newSelectedOptions[attr.code] === attr.value_index
+    // Find the selected variant
+    if (product.variants) {
+      const variant = product.variants.find(v => 
+        v.attributes.every(attr => {
+          const optionId = product.configurable_options.find(opt => opt.id === attr.code)?.id;
+          return selectedOptions[optionId] === attr.value_index || 
+                 (optionId === product.configurable_options.find(opt => opt.id === attr.code)?.id && 
+                  valueIndex === attr.value_index);
+        })
       );
-    });
-    
-    setSelectedVariant(matchingVariant);
+      setSelectedVariant(variant);
+    }
   };
 
   const isConfigurableProduct = () => {
-    return product?.__typename === 'ConfigurableProduct' || product?.configurable_options;
+    return product?.__typename === 'ConfigurableProduct';
   };
 
-  const getCurrentPrice = () => {
-    if (isConfigurableProduct() && selectedVariant) {
-      return selectedVariant.product.price_range?.minimum_price;
-    }
-    return product?.price_range?.minimum_price;
+  const canAddToCart = () => {
+    if (!isInStock()) return false;
+    if (!isConfigurableProduct()) return true;
+    
+    // For configurable products, check if all options are selected
+    return product.configurable_options?.every(option => 
+      selectedOptions[option.id]
+    );
   };
 
   const getProductImage = () => {
@@ -264,18 +265,17 @@ const ProductDetailPage = () => {
             />
           )}
 
-          {/* Configurable Product Options */}
           {isConfigurableProduct() && product.configurable_options && (
             <div className="pdp-configurable-options">
-              <h3>Select Options</h3>
+              <h3>Product Options</h3>
               {product.configurable_options.map((option) => (
                 <div key={option.id} className="configurable-option">
                   <label htmlFor={`option-${option.id}`}>{option.label}:</label>
                   <select
                     id={`option-${option.id}`}
                     value={selectedOptions[option.id] || ''}
-                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
-                    className="option-select"
+                    onChange={(e) => handleOptionChange(option.id, parseInt(e.target.value))}
+                    disabled={addingToCart}
                   >
                     <option value="">Please select...</option>
                     {option.values.map((value) => (
@@ -286,13 +286,6 @@ const ProductDetailPage = () => {
                   </select>
                 </div>
               ))}
-              
-              {selectedVariant && (
-                <div className="selected-variant-info">
-                  <p><strong>Selected:</strong> {selectedVariant.product.name}</p>
-                  <p><strong>SKU:</strong> {selectedVariant.product.sku}</p>
-                </div>
-              )}
             </div>
           )}
 
@@ -312,10 +305,12 @@ const ProductDetailPage = () => {
 
               <button
                 onClick={handleAddToCart}
-                disabled={addingToCart}
+                disabled={addingToCart || !canAddToCart()}
                 className="add-to-cart-button"
               >
-                {addingToCart ? 'Adding...' : 'Add to Cart'}
+                {addingToCart ? 'Adding...' : 
+                 isConfigurableProduct() && !canAddToCart() ? 'Select Options' : 
+                 'Add to Cart'}
               </button>
             </div>
           )}

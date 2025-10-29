@@ -42,11 +42,22 @@ class MagentoApiService {
               id\
               name\
               sku\
-          
+              __typename\
               small_image { url }\
               price_range {\
                 minimum_price {\
                   regular_price { value currency }\
+                  final_price { value currency }\
+                }\
+              }\
+              ... on ConfigurableProduct {\
+                configurable_options {\
+                  id\
+                  label\
+                  values {\
+                    label\
+                    value_index\
+                  }\
                 }\
               }\
             }\
@@ -83,16 +94,18 @@ class MagentoApiService {
       // Normalize to match existing UI expectations
       const normalizedItems = (products.items || []).map(item => {
         const regularPrice = item?.price_range?.minimum_price?.regular_price;
+        const finalPrice = item?.price_range?.minimum_price?.final_price;
         const imageUrl = item?.small_image?.url || null;
 
         return {
           id: item.id,
           name: item.name,
           sku: item.sku,
-          productType: item.__typename || 'SimpleProduct',
+          type: item.__typename,
           // Maintain existing UI expectations
           price: regularPrice?.value ?? null,
           price_currency: regularPrice?.currency ?? 'USD',
+          final_price: finalPrice?.value ?? regularPrice?.value,
           status: typeof item.status === 'number' ? item.status : 1,
           // Emulate REST media_gallery_entries so UI stays unchanged
           media_gallery_entries: imageUrl
@@ -104,7 +117,7 @@ class MagentoApiService {
               ]
             : [],
           // Add configurable options for configurable products
-          configurable_options: item.configurable_options || null,
+          configurable_options: item.configurable_options || [],
         };
       });
 
@@ -215,6 +228,7 @@ class MagentoApiService {
               id\
               name\
               sku\
+              __typename\
               description { html }\
               short_description { html }\
               stock_status\
@@ -237,6 +251,23 @@ class MagentoApiService {
                   label\
                   values {\
                     label\
+                    value_index\
+                  }\
+                }\
+                variants {\
+                  product {\
+                    sku\
+                    name\
+                    small_image { url }\
+                    price_range {\
+                      minimum_price {\
+                        regular_price { value currency }\
+                        final_price { value currency }\
+                      }\
+                    }\
+                  }\
+                  attributes {\
+                    code\
                     value_index\
                   }\
                 }\
@@ -289,9 +320,9 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const mutation = `\
-        mutation {\
-          createEmptyCart\
+      const mutation = `\\
+        mutation {\\
+          createEmptyCart\\
         }`;
 
       const response = await fetch(url, {
@@ -349,54 +380,26 @@ class MagentoApiService {
   }
 
   /**
-   * Add item to guest cart
+   * Add simple product to guest cart
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
    * @param {string} productType - Product type (simple, configurable, etc.)
    * @param {Object} configurableOptions - Configurable product options (for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
-  async addToGuestCart(sku, quantity = 1, productType = 'simple', configurableOptions = null) {
-      try {
-          const cartId = await this.getGuestCartId();
-          
-          // Determine which mutation to use based on product type
-          let mutation, variables;
-          
-          if (productType === 'configurable' && configurableOptions) {
-              // For configurable products, we need to add the selected variant
-              mutation = `
-        mutation AddConfigurableProductToCart($cartId: String!, $sku: String!, $quantity: Float!, $configurableOptions: [ConfigurableProductOptionInput!]!) {
-          addConfigurableProductsToCart(
-            input: {
-              cart_id: $cartId
-              cart_items: [
-                {
-                  data: {
-                    sku: $sku
-                    quantity: $quantity
-                  }
-                  configurable_options: $configurableOptions
-                }
-              ]
-            }
-          ) {
-            cart {
-              items {
-                id
-                product {
-                  name
-                  sku
-                }
-                quantity
-                ... on ConfigurableCartItem {
-                  configurable_options {
-                    id
-                    option_label
-                    value_id
-                    value_label
-                  }
-                }
+  async addSimpleProductToCart(sku, quantity = 1) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+    mutation AddSimpleToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+      addSimpleProductsToCart(
+        input: {
+          cart_id: $cartId
+          cart_items: [
+            {
+              data: {
+                sku: $sku
+                quantity: $quantity
               }
             }
           }
@@ -436,139 +439,126 @@ class MagentoApiService {
               variables = { cartId, sku, quantity };
           }
 
-          const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+      const variables = { cartId, sku, quantity };
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-          const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-              },
-              mode: 'cors',
-              body: JSON.stringify({ query: mutation, variables }),
-          });
+      const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          mode: 'cors',
+          body: JSON.stringify({ query: mutation, variables }),
+      });
 
-          const result = await response.json();
+      const result = await response.json();
 
-          if (result.errors?.length) {
-              const message = result.errors.map(e => e.message).join('; ');
-              throw new Error(message);
-          }
-
-          // Return the appropriate cart items based on product type
-          if (productType === 'configurable') {
-              return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
-          } else {
-              return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
-          }
-      } catch (error) {
-          console.error('Error adding to guest cart:', error);
-          throw error; // Re-throw to allow proper error handling in UI
+      if (result.errors?.length) {
+          const message = result.errors.map(e => e.message).join('; ');
+          throw new Error(message);
       }
+
+      return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
+    } catch (error) {
+        console.error('Error adding simple product to cart:', error);
+        throw error;
+    }
   }
 
   /**
-   * Get configurable product variants
-   * @param {string} sku - Configurable product SKU
-   * @returns {Promise<Array>} Available variants
+   * Add configurable product to guest cart
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @param {Array} selectedOptions - Selected variant options
+   * @returns {Promise<Object>} Cart item response
    */
-  async getConfigurableProductVariants(sku) {
+  async addConfigurableProductToCart(sku, quantity = 1, selectedOptions = []) {
     try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+    mutation AddConfigurableToCart($cartId: String!, $sku: String!, $quantity: Float!, $selectedOptions: [ConfigurableProductOptionInput!]!) {
+      addConfigurableProductsToCart(
+        input: {
+          cart_id: $cartId
+          cart_items: [
+            {
+              data: {
+                sku: $sku
+                quantity: $quantity
+              }
+              customizable_options: $selectedOptions
+            }
+          ]
+        }
+      ) {
+        cart {
+          items {
+            id
+            product {
+              name
+              sku
+            }
+            quantity
+            ... on ConfigurableCartItem {
+              configurable_options {
+                id
+                option_label
+                value_label
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+      const variables = { cartId, sku, quantity, selectedOptions };
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const query = `\\
-        query GetConfigurableProduct($sku: String!) {\\
-          products(filter: { sku: { eq: $sku } }) {\\
-            items {\\
-              ... on ConfigurableProduct {\\
-                variants {\\
-                  product {\\
-                    sku\\
-              __typename\\
-              __typename\\
-                    name\\
-                    price_range {\\
-                      minimum_price {\\
-                        regular_price { value currency }\\
-                        final_price { value currency }\\
-                      }\\
-                    }\\
-                    small_image { url }\\
-                  }\\
-                  attributes {\\
-                    code\\
-                    value_index\\
-                    label\\
-                  }\\
-                }\\
-              }\\
-              ... on ConfigurableProduct {\\
-                configurable_options {\\
-                  id\\
-                  label\\
-                  values {\\
-                    label\\
-                    value_index\\
-                  }\\
-                }\\
-              }\\
-              ... on ConfigurableProduct {\\
-                configurable_options {\\
-                  id\\
-                  label\\
-                  values {\\
-                    label\\
-                    value_index\\
-                  }\\
-                }\\
-              }\\
-              ... on ConfigurableProduct {\\
-                configurable_options {\\
-                  id\\
-                  label\\
-                  values {\\
-                    label\\
-                    value_index\\
-                  }\\
-                }\\
-              }\\
-            }\\
-          }\\
-        }`;
-
       const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        body: JSON.stringify({
-          query,
-          variables: { sku },
-        }),
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          mode: 'cors',
+          body: JSON.stringify({ query: mutation, variables }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+
+      if (result.errors?.length) {
+          const message = result.errors.map(e => e.message).join('; ');
+          throw new Error(message);
       }
+  }
 
-      const gql = await response.json();
-
-      if (gql.errors && gql.errors.length > 0) {
-        const message = gql.errors.map(e => e.message).join('; ');
-        throw new Error(message);
-      }
-
-      const products = gql.data?.products?.items || [];
-      if (products.length === 0) {
-        return [];
-      }
-
-      return products[0].variants || [];
+      return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
     } catch (error) {
-      console.error(`Error fetching configurable product variants for ${sku}:`, error);
-      return [];
+        console.error('Error adding configurable product to cart:', error);
+        throw error;
+    }
+  }
+
+  /**
+   * Add item to guest cart (handles both simple and configurable products)
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @param {string} productType - Product type (SimpleProduct or ConfigurableProduct)
+   * @param {Array} selectedOptions - Selected variant options (for configurable products)
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addToGuestCart(sku, quantity = 1, productType = 'SimpleProduct', selectedOptions = []) {
+    try {
+      if (productType === 'ConfigurableProduct') {
+        return await this.addConfigurableProductToCart(sku, quantity, selectedOptions);
+      } else {
+        return await this.addSimpleProductToCart(sku, quantity);
+      }
+    } catch (error) {
+      console.error('Error adding to guest cart:', error);
+      throw error;
     }
   }
 
