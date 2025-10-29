@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useHistory } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
 import './ProductList.css';
 
 const ProductList = () => {
+  const history = useHistory();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -63,6 +65,10 @@ const ProductList = () => {
     return product.price ? magentoApi.formatPrice(product.price) : 'Price not available';
   };
 
+  const handleProductClick = (product) => {
+    history.push(`/product/${product.sku}`);
+  };
+
   const totalPages = Math.ceil(totalCount / pageSize);
 
   if (loading) {
@@ -115,7 +121,11 @@ const ProductList = () => {
 
       <div className="product-grid">
         {products.map((product) => (
-          <div key={product.id} className="product-card">
+          <div 
+            key={product.id} 
+            className="product-card"
+            onClick={() => handleProductClick(product)}
+          >
             <div className="product-image">
               <img
                 src={getProductImage(product)}
