@@ -39,7 +39,11 @@ The application automatically applies these filters:
 
 ## CORS Handling
 
-For localhost connections, CORS proxy is disabled by default. For remote Magento instances, the application can use CORS proxy services if needed.
+The application includes automatic CORS handling:
+
+- **Development (localhost)**: Uses webpack dev server proxy to avoid CORS issues
+- **Production**: Uses direct API calls or CORS proxy services for remote instances
+- **Automatic detection**: The app automatically detects the environment and uses the appropriate method
 
 ## Development
 

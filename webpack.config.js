@@ -36,8 +36,27 @@ module.exports = {
       directory: path.join(__dirname, 'public'),
     },
     compress: true,
-    port: 3000,
+    port: 9000,
     open: true,
+    proxy: {
+      '/magento2': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        logLevel: 'debug',
+        onProxyReq: (proxyReq, req, res) => {
+          // Add CORS headers to the proxied request
+          proxyReq.setHeader('Origin', 'http://localhost:8080');
+        },
+        onProxyRes: (proxyRes, req, res) => {
+          // Add CORS headers to the response
+          proxyRes.headers['Access-Control-Allow-Origin'] = '*';
+          proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+          proxyRes.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With';
+          proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
+        }
+      }
+    }
   },
   resolve: {
     extensions: ['.js', '.jsx'],
