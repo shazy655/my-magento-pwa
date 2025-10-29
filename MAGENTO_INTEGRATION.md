@@ -1,17 +1,18 @@
 # Magento 2 Product Integration
 
-This React application fetches and displays products from a Magento 2 store using the REST API.
+This React application fetches and displays products from a Magento 2 store using the GraphQL API.
 
 ## Features
 
-- ✅ Fetch products from Magento 2 REST API
+- ✅ Fetch products from Magento 2 GraphQL API
 - ✅ Display products in a responsive grid layout
 - ✅ Pagination support
 - ✅ Loading states and error handling
 - ✅ Product images with fallback
-- ✅ Price formatting
+- ✅ Price formatting with currency support
 - ✅ Product status indicators
 - ✅ CORS proxy support for remote instances
+- ✅ Enhanced product data (categories, custom attributes)
 
 ## Configuration
 
@@ -27,8 +28,9 @@ src/services/magentoApi.js
 
 ## API Endpoints Used
 
-- **Products List**: `GET /rest/V1/products`
-- **Single Product**: `GET /rest/V1/products/{sku}`
+- **GraphQL Endpoint**: `POST /graphql`
+  - Products List Query: `GetProducts`
+  - Single Product Query: `GetProductBySku`
 
 ## Search Criteria
 
@@ -58,11 +60,18 @@ For localhost connections, CORS proxy is disabled by default. For remote Magento
    npm run build
    ```
 
+## Dependencies
+
+The application uses the following GraphQL-related dependencies:
+
+- `graphql-request`: Lightweight GraphQL client
+- `graphql`: GraphQL JavaScript reference implementation
+
 ## Magento 2 Setup Requirements
 
 Ensure your Magento 2 instance has:
 
-1. **REST API enabled** (enabled by default)
+1. **GraphQL API enabled** (enabled by default in Magento 2.3+)
 2. **CORS headers configured** (if accessing from different domain)
 3. **Products with proper visibility and status**
 

@@ -8,10 +8,16 @@
     "dev": "webpack serve --mode development",
     "start": "npm run dev"
   },
-  "keywords": ["pwa", "magento", "react"],
+  "keywords": [
+    "pwa",
+    "magento",
+    "react"
+  ],
   "author": "Cursor Agent <cursoragent@cursor.com>",
   "license": "MIT",
   "dependencies": {
+    "graphql": "^16.11.0",
+    "graphql-request": "^7.3.1",
     "react": "^17.0.0",
     "react-dom": "^17.0.0"
   },
