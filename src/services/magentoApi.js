@@ -1,12 +1,13 @@
 /**
  * Magento 2 API Service
- * Handles communication with Magento 2 REST API
+ * Handles communication with Magento 2 APIs (GraphQL preferred)
  */
 
 import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
 const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
+const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
 
 class MagentoApiService {
@@ -19,58 +20,100 @@ class MagentoApiService {
    * @returns {Promise<Object>} Products data
    */
   async fetchProducts(params = {}) {
-    const {
-      pageSize = 20,
-      currentPage = 1,
-      searchCriteria = ''
-    } = params;
+    const { pageSize = 20, currentPage = 1 } = params;
 
     try {
-      // Build search criteria for Magento 2 API
-      let searchParams = new URLSearchParams();
-      
-      // Add pagination
-      searchParams.append('searchCriteria[pageSize]', pageSize);
-      searchParams.append('searchCriteria[currentPage]', currentPage);
-      
-      // Add filter to only get visible products
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][field]', 'visibility');
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][value]', '4');
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][conditionType]', 'eq');
-      
-      // Add status filter to get only enabled products
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][field]', 'status');
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][value]', '1');
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][conditionType]', 'eq');
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/products?${searchParams.toString()}`, USE_CORS_PROXY);
-      
-      console.log('Fetching products from:', url);
-      console.log('Using CORS proxy:', USE_CORS_PROXY);
-      
+      const query = `\
+        query Products($pageSize: Int!, $currentPage: Int!) {\
+          products(\
+            search: ""\
+            pageSize: $pageSize\
+            currentPage: $currentPage\
+            filter: {\
+              visibility: { eq: "4" }\
+              status: { eq: "1" }\
+            }\
+          ) {\
+            total_count\
+            items {\
+              id\
+              name\
+              sku\
+              status\
+              small_image { url }\
+              price_range {\
+                minimum_price {\
+                  regular_price { value currency }\
+                }\
+              }\
+            }\
+            page_info { current_page page_size total_pages }\
+          }\
+        }`;
+
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        // Add CORS mode for cross-origin requests
         mode: 'cors',
+        body: JSON.stringify({
+          query,
+          variables: { pageSize, currentPage },
+        }),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const products = (gql.data && gql.data.products) ? gql.data.products : { items: [], total_count: 0, page_info: {} };
+
+      // Normalize to match existing UI expectations
+      const normalizedItems = (products.items || []).map(item => {
+        const regularPrice = item?.price_range?.minimum_price?.regular_price;
+        const imageUrl = item?.small_image?.url || null;
+
+        return {
+          id: item.id,
+          name: item.name,
+          sku: item.sku,
+          // Maintain existing UI expectations
+          price: regularPrice?.value ?? null,
+          price_currency: regularPrice?.currency ?? 'USD',
+          status: typeof item.status === 'number' ? item.status : 1,
+          // Emulate REST media_gallery_entries so UI stays unchanged
+          media_gallery_entries: imageUrl
+            ? [
+                {
+                  types: ['image'],
+                  file: this._toGalleryFilePathOrUrl(imageUrl),
+                },
+              ]
+            : [],
+        };
+      });
+
       return {
-        items: data.items || [],
-        totalCount: data.total_count || 0,
-        searchCriteria: data.search_criteria || {}
+        items: normalizedItems,
+        totalCount: products.total_count || 0,
+        searchCriteria: {
+          currentPage,
+          pageSize,
+        },
       };
     } catch (error) {
-      console.error('Error fetching products from Magento:', error);
+      console.error('Error fetching products from Magento (GraphQL):', error);
       throw new Error(`Failed to fetch products: ${error.message}`);
     }
   }
@@ -111,11 +154,32 @@ class MagentoApiService {
    */
   getImageUrl(imagePath) {
     if (!imagePath) return null;
-    
+
+    // If already absolute, return as-is
+    if (typeof imagePath === 'string' && (/^https?:\/\//i).test(imagePath)) {
+      return imagePath;
+    }
+
     // Remove leading slash if present
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
-    
+
     return `${MAGENTO_BASE_URL}/media/catalog/product/${cleanPath}`;
+  }
+
+  // Convert an absolute media URL to a gallery file path if possible
+  _toGalleryFilePathOrUrl(url) {
+    if (typeof url !== 'string') return null;
+    try {
+      const marker = '/media/catalog/product/';
+      const idx = url.indexOf(marker);
+      if (idx !== -1) {
+        const filePath = url.substring(idx + marker.length);
+        return filePath.startsWith('/') ? filePath.slice(1) : filePath;
+      }
+      return url; // fallback: absolute URL
+    } catch {
+      return url;
+    }
   }
 
   /**
