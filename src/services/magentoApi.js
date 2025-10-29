@@ -312,6 +312,56 @@ class MagentoApiService {
   }
 
   /**
+   * Create an empty cart using GraphQL mutation
+   * @returns {Promise<string>} Cart ID (quote ID)
+   */
+  async createEmptyCart() {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `\
+        mutation {\
+          createEmptyCart\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const cartId = gql.data?.createEmptyCart;
+      if (!cartId) {
+        throw new Error('No cart ID returned from createEmptyCart mutation');
+      }
+
+      // Store cart ID in localStorage for persistence
+      localStorage.setItem('guest_cart_id', cartId);
+      return cartId;
+    } catch (error) {
+      console.error('Error creating empty cart with GraphQL:', error);
+      throw new Error(`Failed to create empty cart: ${error.message}`);
+    }
+  }
+
+  /**
    * Get or create a guest cart ID
    * @returns {Promise<string>} Cart ID
    */
@@ -319,6 +369,18 @@ class MagentoApiService {
     let cartId = localStorage.getItem('guest_cart_id');
     if (!cartId) {
       cartId = await this.createGuestCart();
+    }
+    return cartId;
+  }
+
+  /**
+   * Get or create a guest cart ID using GraphQL
+   * @returns {Promise<string>} Cart ID
+   */
+  async getGuestCartIdGraphQL() {
+    let cartId = localStorage.getItem('guest_cart_id');
+    if (!cartId) {
+      cartId = await this.createEmptyCart();
     }
     return cartId;
   }
@@ -370,6 +432,90 @@ class MagentoApiService {
   }
 
   /**
+   * Add item to guest cart using GraphQL (with createEmptyCart)
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addToGuestCartGraphQL(sku, quantity = 1) {
+    try {
+      const cartId = await this.getGuestCartIdGraphQL();
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `\
+        mutation AddProductsToCart($cartId: String!, $cartItems: [CartItemInput!]!) {\
+          addProductsToCart(cartId: $cartId, cartItems: $cartItems) {\
+            cart {\
+              id\
+              items {\
+                id\
+                product {\
+                  name\
+                  sku\
+                }\
+                quantity\
+              }\
+            }\
+            user_errors {\
+              code\
+              message\
+            }\
+          }\
+        }`;
+
+      const variables = {
+        cartId: cartId,
+        cartItems: [
+          {
+            sku: sku,
+            quantity: quantity
+          }
+        ]
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+          variables: variables,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const result = gql.data?.addProductsToCart;
+      if (result?.user_errors && result.user_errors.length > 0) {
+        const message = result.user_errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error adding to cart with GraphQL:', error);
+      // If cart is invalid, try creating a new one
+      if (error.message.includes('No such entity') || error.message.includes('Could not find a cart')) {
+        localStorage.removeItem('guest_cart_id');
+        return await this.addToGuestCartGraphQL(sku, quantity);
+      }
+      throw new Error(`Failed to add item to cart: ${error.message}`);
+    }
+  }
+
+  /**
    * Get guest cart items
    * @returns {Promise<Array>} Cart items
    */
@@ -394,6 +540,79 @@ class MagentoApiService {
       return await response.json();
     } catch (error) {
       console.error('Error fetching cart items:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get guest cart items using GraphQL
+   * @returns {Promise<Array>} Cart items
+   */
+  async getGuestCartItemsGraphQL() {
+    try {
+      const cartId = await this.getGuestCartIdGraphQL();
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const query = `\
+        query GetCart($cartId: String!) {\
+          cart(cart_id: $cartId) {\
+            id\
+            items {\
+              id\
+              product {\
+                id\
+                name\
+                sku\
+                small_image { url }\
+                price_range {\
+                  minimum_price {\
+                    regular_price { value currency }\
+                  }\
+                }\
+              }\
+              quantity\
+              prices {\
+                price { value currency }\
+                total_item_discount { value currency }\
+                row_total { value currency }\
+              }\
+            }\
+            total_quantity\
+            prices {\
+              grand_total { value currency }\
+              subtotal_excluding_tax { value currency }\
+            }\
+          }\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query,
+          variables: { cartId },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const cart = gql.data?.cart;
+      return cart?.items || [];
+    } catch (error) {
+      console.error('Error fetching cart items with GraphQL:', error);
       return [];
     }
   }

@@ -12,6 +12,7 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+  const [useGraphQL, setUseGraphQL] = useState(false);
 
   useEffect(() => {
     fetchProductDetails();
@@ -36,12 +37,19 @@ const ProductDetailPage = () => {
       setAddingToCart(true);
       setCartMessage(null);
       
-      await magentoApi.addToGuestCart(product.sku, quantity);
-      
-      setCartMessage({
-        type: 'success',
-        text: `${product.name} has been added to your cart!`
-      });
+      if (useGraphQL) {
+        await magentoApi.addToGuestCartGraphQL(product.sku, quantity);
+        setCartMessage({
+          type: 'success',
+          text: `${product.name} has been added to your cart using GraphQL createEmptyCart!`
+        });
+      } else {
+        await magentoApi.addToGuestCart(product.sku, quantity);
+        setCartMessage({
+          type: 'success',
+          text: `${product.name} has been added to your cart!`
+        });
+      }
       
       // Clear message after 5 seconds
       setTimeout(() => setCartMessage(null), 5000);
@@ -202,6 +210,20 @@ const ProductDetailPage = () => {
 
           {isInStock() && (
             <div className="pdp-add-to-cart">
+              <div className="api-toggle">
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={useGraphQL}
+                    onChange={(e) => setUseGraphQL(e.target.checked)}
+                    disabled={addingToCart}
+                  />
+                  <span className="toggle-text">
+                    Use GraphQL createEmptyCart {useGraphQL ? '✓' : ''}
+                  </span>
+                </label>
+              </div>
+
               <div className="quantity-selector">
                 <label htmlFor="quantity">Quantity:</label>
                 <input
@@ -219,7 +241,7 @@ const ProductDetailPage = () => {
                 disabled={addingToCart}
                 className="add-to-cart-button"
               >
-                {addingToCart ? 'Adding...' : 'Add to Cart'}
+                {addingToCart ? 'Adding...' : `Add to Cart ${useGraphQL ? '(GraphQL)' : '(REST)'}`}
               </button>
             </div>
           )}

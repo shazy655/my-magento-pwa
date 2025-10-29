@@ -60,6 +60,29 @@ Successfully implemented a Product Detail Page (PDP) with stock checking and gue
 - Retrieves all items in the guest cart
 - Returns: Array of cart items
 
+#### `createEmptyCart()` - NEW GraphQL Method
+- Creates an empty cart using GraphQL `createEmptyCart` mutation
+- Stores cart ID in localStorage for persistence
+- Returns: cart ID (quote ID)
+
+#### `getGuestCartIdGraphQL()`
+- Retrieves existing cart ID from localStorage or creates a new cart using GraphQL
+- Returns: cart ID
+
+#### `addToGuestCartGraphQL(sku, quantity)`
+- Adds a product to the guest cart using GraphQL mutations
+- Uses `addProductsToCart` mutation with cart created by `createEmptyCart`
+- Handles cart validation and auto-recreation if cart is invalid
+- Parameters:
+  - `sku`: Product SKU
+  - `quantity`: Quantity to add (default: 1)
+- Returns: Cart response with items and user_errors
+
+#### `getGuestCartItemsGraphQL()`
+- Retrieves all items in the guest cart using GraphQL
+- Uses `cart` query to get detailed cart information
+- Returns: Array of cart items with detailed product and pricing information
+
 ### 4. Interactive Product List
 **Location**: `/src/components/ProductList.js` and `/src/components/ProductList.css`
 
@@ -74,8 +97,21 @@ Successfully implemented a Product Detail Page (PDP) with stock checking and gue
 
 **Changes**:
 - Integrated React Router
-- Added route switching between ProductList and ProductDetailPage
+- Added route switching between ProductList, ProductDetailPage, and CartDemo
+- Added navigation menu with links to Products and Cart Demo
 - Maintained existing header and layout
+
+### 6. Cart Demo Component - NEW
+**Location**: `/src/components/CartDemo.js` and `/src/components/CartDemo.css`
+
+**Features**:
+- ✅ Interactive demo of GraphQL `createEmptyCart` mutation
+- ✅ Create empty cart button that calls the GraphQL mutation
+- ✅ Display cart ID returned from the mutation
+- ✅ Get cart items using GraphQL queries
+- ✅ Clear cart functionality
+- ✅ Error handling and loading states
+- ✅ Code example showing the exact GraphQL mutation used
 
 ## User Flow
 
@@ -86,11 +122,13 @@ Successfully implemented a Product Detail Page (PDP) with stock checking and gue
    - **Stock status** (In Stock / Out of Stock)
    - Price and discounts
 4. **Add to Cart** (if in stock):
+   - Toggle between REST API and GraphQL methods
    - Select quantity
    - Click "Add to Cart" button
-   - See success message
+   - See success message (indicates which method was used)
    - Cart ID is stored for future additions
 5. **Navigate Back**: Click "Back to Products" to return to list
+6. **Cart Demo**: Visit `/cart-demo` to test GraphQL `createEmptyCart` mutation directly
 
 ## Guest Cart Functionality
 
@@ -126,6 +164,9 @@ The stock status is fetched via GraphQL using the `stock_status` field which ret
 ### API Endpoints Used
 - **GraphQL** (`/magento2/pub/graphql`):
   - Product details query with stock status
+  - `createEmptyCart` mutation - Create empty cart
+  - `addProductsToCart` mutation - Add items to cart
+  - `cart` query - Get cart items and details
 - **REST API** (`/magento2/pub/rest/V1`):
   - `POST /guest-carts` - Create guest cart
   - `POST /guest-carts/{cartId}/items` - Add item to cart
@@ -149,13 +190,18 @@ The stock status is fetched via GraphQL using the `stock_status` field which ret
 ### Created:
 - `/src/components/ProductDetailPage.js` - PDP component
 - `/src/components/ProductDetailPage.css` - PDP styles
+- `/src/components/CartDemo.js` - GraphQL cart demo component
+- `/src/components/CartDemo.css` - Cart demo styles
 - `/workspace/IMPLEMENTATION_SUMMARY.md` - This document
 
 ### Modified:
-- `/src/App.js` - Added routing
+- `/src/App.js` - Added routing and navigation
+- `/src/App.css` - Added navigation styles
 - `/src/components/ProductList.js` - Added click handlers and routing
 - `/src/components/ProductList.css` - Added cursor pointer
-- `/src/services/magentoApi.js` - Added cart and product detail APIs
+- `/src/components/ProductDetailPage.js` - Added GraphQL toggle option
+- `/src/components/ProductDetailPage.css` - Added toggle styles
+- `/src/services/magentoApi.js` - Added GraphQL cart methods and product detail APIs
 - `/package.json` - Added react-router-dom dependency
 
 ## Testing Recommendations
@@ -166,10 +212,11 @@ The stock status is fetched via GraphQL using the `stock_status` field which ret
    - Verify image loading and fallbacks
 
 2. **Guest Cart**:
-   - Add products to cart
+   - Add products to cart using both REST and GraphQL methods
    - Verify localStorage cart ID persistence
    - Test adding multiple quantities
    - Clear localStorage and test cart recreation
+   - Use Cart Demo page to test GraphQL `createEmptyCart` directly
 
 3. **Responsive Design**:
    - Test on mobile devices
