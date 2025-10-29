@@ -329,36 +329,7 @@ class MagentoApiService {
     }
   }
 
-  /**
-   * Create a guest cart using REST API (legacy method)
-   * @returns {Promise<string>} Cart ID (quote ID)
-   */
-  async createGuestCart() {
-    try {
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts`, USE_CORS_PROXY);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const cartId = await response.json();
-      // Store cart ID in localStorage for persistence
-      localStorage.setItem('guest_cart_id', cartId);
-      return cartId;
-    } catch (error) {
-      console.error('Error creating guest cart:', error);
-      throw new Error(`Failed to create cart: ${error.message}`);
-    }
-  }
 
   /**
    * Get or create a guest cart ID
@@ -369,7 +340,7 @@ class MagentoApiService {
   async getGuestCartId(useRestApi = false) {
     let cartId = localStorage.getItem('guest_cart_id');
     if (!cartId) {
-      cartId = useRestApi ? await this.createGuestCart() : await this.createEmptyCart();
+      cartId =  await this.createEmptyCart();
     }
     return cartId;
   }
@@ -381,44 +352,63 @@ class MagentoApiService {
    * @returns {Promise<Object>} Cart item response
    */
   async addToGuestCart(sku, quantity = 1) {
-    try {
-      const cartId = await this.getGuestCartId();
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts/${cartId}/items`, USE_CORS_PROXY);
-
-      const cartItem = {
-        cartItem: {
-          sku: sku,
-          qty: quantity,
-          cart_id: cartId
-
+      try {
+          const cartId = await this.getGuestCartId();
+          const mutation = `
+    mutation AddToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+      addSimpleProductsToCart(
+        input: {
+          cart_id: $cartId
+          cart_items: [
+            {
+              data: {
+                sku: $sku
+                quantity: $quantity
+              }
+            }
+          ]
         }
-      };
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        mode: 'cors',
-        body: JSON.stringify(cartItem),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      ) {
+        cart {
+          items {
+            id
+            product {
+              name
+              sku
+            }
+            quantity
+          }
+        }
       }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      // If cart is invalid, try creating a new one
-      if (error.message.includes('No such entity')) {
-        localStorage.removeItem('guest_cart_id');
-        return await this.addToGuestCart(sku, quantity);
-      }
-      throw new Error(`Failed to add item to cart: ${error.message}`);
     }
+  `;
+
+          const variables = { cartId, sku, quantity };
+          const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+          const response = await fetch(url, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+              },
+              mode: 'cors',
+              body: JSON.stringify({ query: mutation, variables }),
+          });
+
+          const result = await response.json();
+
+          if (result.errors?.length) {
+              const message = result.errors.map(e => e.message).join('; ');
+              throw new Error(message);
+          }
+
+          return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
+      } catch (error) {
+          console.error('Error adding to guest cart:', error);
+          return [];
+      }
+
   }
 
   /**
