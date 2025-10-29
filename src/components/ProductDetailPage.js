@@ -73,7 +73,7 @@ const ProductDetailPage = () => {
     if (product?.media_gallery && product.media_gallery.length > 0) {
       return product.media_gallery[0].url;
     }
-    return 'https://via.placeholder.com/600x600?text=No+Image';
+    return '/e-commerce.webp';
   };
 
   const getPrice = () => {
@@ -154,7 +154,7 @@ const ProductDetailPage = () => {
             src={getProductImage()}
             alt={product.name}
             onError={(e) => {
-              e.target.src = 'https://via.placeholder.com/600x600?text=No+Image';
+              e.target.src = '/e-commerce.webp';
             }}
           />
         </div>

@@ -214,7 +214,6 @@ class MagentoApiService {
               sku\
               description { html }\
               short_description { html }\
-              status\
               stock_status\
               small_image { url }\
               image { url }\
@@ -337,7 +336,8 @@ class MagentoApiService {
         cartItem: {
           sku: sku,
           qty: quantity,
-          quote_id: cartId
+          cart_id: cartId
+
         }
       };
 
