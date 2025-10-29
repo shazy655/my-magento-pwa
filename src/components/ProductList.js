@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import magentoApi from '../services/magentoApi';
+import graphqlApi from '../services/graphqlApi';
 import './ProductList.css';
 
 const ProductList = () => {
@@ -19,7 +19,7 @@ const ProductList = () => {
       setLoading(true);
       setError(null);
       
-      const response = await magentoApi.fetchProducts({
+      const response = await graphqlApi.fetchProducts({
         pageSize,
         currentPage
       });
@@ -44,23 +44,11 @@ const ProductList = () => {
   };
 
   const getProductImage = (product) => {
-    // Try to get the first media gallery entry or use a placeholder
-    if (product.media_gallery_entries && product.media_gallery_entries.length > 0) {
-      const mainImage = product.media_gallery_entries.find(entry => 
-        entry.types && entry.types.includes('image')
-      ) || product.media_gallery_entries[0];
-      
-      if (mainImage && mainImage.file) {
-        return magentoApi.getImageUrl(mainImage.file);
-      }
-    }
-    
-    // Fallback to placeholder image
-    return 'https://via.placeholder.com/300x300?text=No+Image';
+    return graphqlApi.getProductImage(product);
   };
 
   const getProductPrice = (product) => {
-    return product.price ? magentoApi.formatPrice(product.price) : 'Price not available';
+    return graphqlApi.formatPrice(product.price_range);
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
@@ -70,7 +58,7 @@ const ProductList = () => {
       <div className="product-list-container">
         <div className="loading">
           <div className="loading-spinner"></div>
-          <p>Loading products from Magento...</p>
+          <p>Loading products from Magento via GraphQL...</p>
         </div>
       </div>
     );
@@ -107,7 +95,7 @@ const ProductList = () => {
   return (
     <div className="product-list-container">
       <div className="product-list-header">
-        <h2>Products from Magento 2</h2>
+        <h2>Products from Magento 2 (GraphQL)</h2>
         <p className="product-count">
           Showing {products.length} of {totalCount} products
         </p>
@@ -129,10 +117,10 @@ const ProductList = () => {
               <h3 className="product-name">{product.name}</h3>
               <p className="product-sku">SKU: {product.sku}</p>
               <p className="product-price">{getProductPrice(product)}</p>
-              {product.status === 1 && (
+              {product.status === '1' && (
                 <span className="product-status available">Available</span>
               )}
-              {product.status !== 1 && (
+              {product.status !== '1' && (
                 <span className="product-status unavailable">Unavailable</span>
               )}
             </div>

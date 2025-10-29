@@ -1,10 +1,12 @@
 # Magento 2 Product Integration
 
-This React application fetches and displays products from a Magento 2 store using the REST API.
+This React application fetches and displays products from a Magento 2 store using both REST API and GraphQL.
 
 ## Features
 
 - ✅ Fetch products from Magento 2 REST API
+- ✅ Fetch products from Magento 2 GraphQL API
+- ✅ Side-by-side API comparison view
 - ✅ Display products in a responsive grid layout
 - ✅ Pagination support
 - ✅ Loading states and error handling
@@ -27,15 +29,27 @@ src/services/magentoApi.js
 
 ## API Endpoints Used
 
+### REST API
 - **Products List**: `GET /rest/V1/products`
 - **Single Product**: `GET /rest/V1/products/{sku}`
 
+### GraphQL API
+- **Products Query**: `POST /graphql` with `GetProducts` query
+- **Single Product**: `POST /graphql` with `GetProductBySku` query
+- **Search Products**: `POST /graphql` with `SearchProducts` query
+
 ## Search Criteria
 
-The application automatically applies these filters:
+The application automatically applies these filters for both APIs:
 - **Visibility**: Only products visible in catalog (visibility = 4)
 - **Status**: Only enabled products (status = 1)
 - **Pagination**: Configurable page size (default: 12 products per page)
+
+### GraphQL Specific Features
+- **Flexible Querying**: Request only needed fields
+- **Nested Data**: Access related data like categories, media gallery
+- **Type Safety**: Strongly typed queries and responses
+- **Caching**: Apollo Client provides intelligent caching
 
 ## CORS Handling
 
@@ -100,15 +114,28 @@ Edit `src/components/ProductList.js` to customize:
 - Displayed product information
 - Pagination settings
 
+### API Comparison
+Edit `src/components/ProductComparison.js` to customize:
+- Side-by-side comparison layout
+- API performance metrics
+- Error handling differences
+
 ### Styling
 Update `src/components/ProductList.css` for:
 - Grid layout adjustments
 - Color scheme changes
 - Responsive breakpoints
 
-### API Parameters
+### REST API Parameters
 Modify `src/services/magentoApi.js` to:
 - Add additional search filters
 - Change default page size
 - Include custom attributes
 - Add sorting options
+
+### GraphQL Queries
+Modify `src/services/graphqlApi.js` to:
+- Add new GraphQL queries
+- Include additional product fields
+- Customize query variables
+- Add new search capabilities
