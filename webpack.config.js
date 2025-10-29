@@ -36,7 +36,7 @@ module.exports = {
       directory: path.join(__dirname, 'public'),
     },
     compress: true,
-    port: 3000,
+    port: 9000,
     open: true,
     proxy: [
       {
