@@ -1,17 +1,17 @@
 /**
  * Magento 2 API Service
- * Handles communication with Magento 2 REST API
+ * Handles communication with Magento 2 GraphQL API
  */
 
 import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
 const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
-const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
+const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
 
 class MagentoApiService {
   /**
-   * Fetch products from Magento 2
+   * Fetch products from Magento 2 using GraphQL
    * @param {Object} params - Query parameters
    * @param {number} params.pageSize - Number of products per page (default: 20)
    * @param {number} params.currentPage - Current page number (default: 1)
@@ -26,35 +26,78 @@ class MagentoApiService {
     } = params;
 
     try {
-      // Build search criteria for Magento 2 API
-      let searchParams = new URLSearchParams();
-      
-      // Add pagination
-      searchParams.append('searchCriteria[pageSize]', pageSize);
-      searchParams.append('searchCriteria[currentPage]', currentPage);
-      
-      // Add filter to only get visible products
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][field]', 'visibility');
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][value]', '4');
-      searchParams.append('searchCriteria[filterGroups][0][filters][0][conditionType]', 'eq');
-      
-      // Add status filter to get only enabled products
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][field]', 'status');
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][value]', '1');
-      searchParams.append('searchCriteria[filterGroups][1][filters][0][conditionType]', 'eq');
+      // GraphQL query for fetching products
+      const query = `
+        query GetProducts($pageSize: Int!, $currentPage: Int!) {
+          products(
+            pageSize: $pageSize
+            currentPage: $currentPage
+            filter: {
+              visibility: { eq: "4" }
+            }
+          ) {
+            total_count
+            items {
+              id
+              uid
+              name
+              sku
+              price_range {
+                minimum_price {
+                  regular_price {
+                    value
+                    currency
+                  }
+                  final_price {
+                    value
+                    currency
+                  }
+                }
+              }
+              image {
+                url
+                label
+              }
+              small_image {
+                url
+                label
+              }
+              thumbnail {
+                url
+                label
+              }
+              media_gallery {
+                url
+                label
+              }
+            }
+            page_info {
+              page_size
+              current_page
+              total_pages
+            }
+          }
+        }
+      `;
 
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/products?${searchParams.toString()}`, USE_CORS_PROXY);
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
       
-      console.log('Fetching products from:', url);
+      console.log('Fetching products via GraphQL from:', url);
       console.log('Using CORS proxy:', USE_CORS_PROXY);
       
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        // Add CORS mode for cross-origin requests
+        body: JSON.stringify({
+          query,
+          variables: {
+            pageSize,
+            currentPage
+          }
+        }),
         mode: 'cors',
       });
 
@@ -62,34 +105,111 @@ class MagentoApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const result = await response.json();
+      
+      if (result.errors) {
+        console.error('GraphQL errors:', result.errors);
+        throw new Error(`GraphQL error: ${result.errors[0].message}`);
+      }
+
+      const data = result.data.products;
+      
+      // Transform GraphQL response to match REST API format
+      const items = data.items.map(item => ({
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        price: item.price_range?.minimum_price?.final_price?.value || 
+               item.price_range?.minimum_price?.regular_price?.value || 0,
+        status: 1, // GraphQL doesn't return disabled products by default
+        media_gallery_entries: item.media_gallery?.map((media, index) => ({
+          id: index,
+          file: media.url,
+          label: media.label,
+          types: ['image']
+        })) || []
+      }));
       
       return {
-        items: data.items || [],
+        items: items,
         totalCount: data.total_count || 0,
-        searchCriteria: data.search_criteria || {}
+        pageInfo: data.page_info || {}
       };
     } catch (error) {
-      console.error('Error fetching products from Magento:', error);
+      console.error('Error fetching products from Magento GraphQL:', error);
       throw new Error(`Failed to fetch products: ${error.message}`);
     }
   }
 
   /**
-   * Fetch a single product by SKU
+   * Fetch a single product by SKU using GraphQL
    * @param {string} sku - Product SKU
    * @returns {Promise<Object>} Product data
    */
   async fetchProductBySku(sku) {
     try {
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/products/${encodeURIComponent(sku)}`, USE_CORS_PROXY);
+      // GraphQL query for fetching a single product by SKU
+      const query = `
+        query GetProductBySku($sku: String!) {
+          products(filter: { sku: { eq: $sku } }) {
+            items {
+              id
+              uid
+              name
+              sku
+              price_range {
+                minimum_price {
+                  regular_price {
+                    value
+                    currency
+                  }
+                  final_price {
+                    value
+                    currency
+                  }
+                }
+              }
+              description {
+                html
+              }
+              short_description {
+                html
+              }
+              image {
+                url
+                label
+              }
+              small_image {
+                url
+                label
+              }
+              thumbnail {
+                url
+                label
+              }
+              media_gallery {
+                url
+                label
+                disabled
+              }
+              stock_status
+            }
+          }
+        }
+      `;
+
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
       
       const response = await fetch(url, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
+        body: JSON.stringify({
+          query,
+          variables: { sku }
+        }),
         mode: 'cors',
       });
 
@@ -97,7 +217,37 @@ class MagentoApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      
+      if (result.errors) {
+        console.error('GraphQL errors:', result.errors);
+        throw new Error(`GraphQL error: ${result.errors[0].message}`);
+      }
+
+      if (!result.data.products.items || result.data.products.items.length === 0) {
+        throw new Error(`Product with SKU ${sku} not found`);
+      }
+
+      const item = result.data.products.items[0];
+      
+      // Transform GraphQL response to match REST API format
+      return {
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        price: item.price_range?.minimum_price?.final_price?.value || 
+               item.price_range?.minimum_price?.regular_price?.value || 0,
+        description: item.description?.html || '',
+        short_description: item.short_description?.html || '',
+        status: item.stock_status === 'IN_STOCK' ? 1 : 0,
+        media_gallery_entries: item.media_gallery?.map((media, index) => ({
+          id: index,
+          file: media.url,
+          label: media.label,
+          disabled: media.disabled || false,
+          types: ['image']
+        })) || []
+      };
     } catch (error) {
       console.error(`Error fetching product ${sku}:`, error);
       throw new Error(`Failed to fetch product ${sku}: ${error.message}`);
@@ -106,15 +256,19 @@ class MagentoApiService {
 
   /**
    * Get product image URL
-   * @param {string} imagePath - Image path from product data
+   * @param {string} imagePath - Image path from product data (can be full URL from GraphQL or path from REST)
    * @returns {string} Full image URL
    */
   getImageUrl(imagePath) {
     if (!imagePath) return null;
     
-    // Remove leading slash if present
-    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+    // If it's already a full URL (from GraphQL), return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
     
+    // Otherwise, construct the full URL (for REST API compatibility)
+    const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
     return `${MAGENTO_BASE_URL}/media/catalog/product/${cleanPath}`;
   }
 

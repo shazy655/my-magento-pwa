@@ -1,10 +1,10 @@
 # Magento 2 Product Integration
 
-This React application fetches and displays products from a Magento 2 store using the REST API.
+This React application fetches and displays products from a Magento 2 store using the GraphQL API.
 
 ## Features
 
-- ✅ Fetch products from Magento 2 REST API
+- ✅ Fetch products from Magento 2 GraphQL API
 - ✅ Display products in a responsive grid layout
 - ✅ Pagination support
 - ✅ Loading states and error handling
@@ -27,15 +27,18 @@ src/services/magentoApi.js
 
 ## API Endpoints Used
 
-- **Products List**: `GET /rest/V1/products`
-- **Single Product**: `GET /rest/V1/products/{sku}`
+- **GraphQL Endpoint**: `POST /graphql`
+  - Products List Query
+  - Single Product Query by SKU
 
-## Search Criteria
+## GraphQL Query Features
 
-The application automatically applies these filters:
-- **Visibility**: Only products visible in catalog (visibility = 4)
-- **Status**: Only enabled products (status = 1)
+The application uses GraphQL queries with these capabilities:
+- **Product Filtering**: Only products visible in catalog (visibility = 4)
 - **Pagination**: Configurable page size (default: 12 products per page)
+- **Price Range**: Fetches both regular and final prices
+- **Media Gallery**: Retrieves all product images
+- **Stock Status**: Gets real-time stock information
 
 ## CORS Handling
 
@@ -62,9 +65,17 @@ For localhost connections, CORS proxy is disabled by default. For remote Magento
 
 Ensure your Magento 2 instance has:
 
-1. **REST API enabled** (enabled by default)
+1. **GraphQL API enabled** (enabled by default in Magento 2.3+)
 2. **CORS headers configured** (if accessing from different domain)
 3. **Products with proper visibility and status**
+
+### GraphQL Advantages
+
+- **Flexible data fetching**: Request only the fields you need
+- **Single endpoint**: All queries go to `/graphql`
+- **Strongly typed**: Built-in validation and type checking
+- **Reduced over-fetching**: Better performance with precise queries
+- **Better error handling**: Detailed error messages in responses
 
 ### Optional: Configure CORS in Magento 2
 
