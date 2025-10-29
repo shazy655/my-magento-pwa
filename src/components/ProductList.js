@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
 import './ProductList.css';
 
 const ProductList = () => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,6 +43,10 @@ const ProductList = () => {
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleProductClick = (product) => {
+    navigate(`/product/${encodeURIComponent(product.sku)}`);
   };
 
   const getProductImage = (product) => {
@@ -115,7 +121,11 @@ const ProductList = () => {
 
       <div className="product-grid">
         {products.map((product) => (
-          <div key={product.id} className="product-card">
+          <div 
+            key={product.id} 
+            className="product-card clickable"
+            onClick={() => handleProductClick(product)}
+          >
             <div className="product-image">
               <img
                 src={getProductImage(product)}
