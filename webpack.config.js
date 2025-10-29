@@ -38,6 +38,13 @@ module.exports = {
     compress: true,
     port: 3000,
     open: true,
+    proxy: {
+      '/magento2': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   resolve: {
     extensions: ['.js', '.jsx'],
