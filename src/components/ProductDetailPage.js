@@ -12,6 +12,7 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+  const [selectedOptions, setSelectedOptions] = useState({});
 
   useEffect(() => {
     fetchProductDetails();
@@ -36,7 +37,21 @@ const ProductDetailPage = () => {
       setAddingToCart(true);
       setCartMessage(null);
       
-      await magentoApi.addToGuestCart(product.sku, quantity);
+      // For configurable products, validate that all options are selected
+      if (product.__typename === 'ConfigurableProduct') {
+        const requiredOptions = product.configurable_options || [];
+        const selectedOptionIds = Object.values(selectedOptions);
+        
+        if (requiredOptions.length !== selectedOptionIds.length) {
+          throw new Error('Please select all required options');
+        }
+        
+        await magentoApi.addToGuestCart(product.sku, quantity, {
+          selectedOptions: selectedOptions
+        });
+      } else {
+        await magentoApi.addToGuestCart(product.sku, quantity);
+      }
       
       setCartMessage({
         type: 'success',
@@ -61,6 +76,29 @@ const ProductDetailPage = () => {
     if (value > 0) {
       setQuantity(value);
     }
+  };
+
+  const handleOptionChange = (optionId, valueIndex) => {
+    setSelectedOptions(prev => ({
+      ...prev,
+      [optionId]: valueIndex
+    }));
+  };
+
+  const isConfigurableProduct = () => {
+    return product?.__typename === 'ConfigurableProduct';
+  };
+
+  const canAddToCart = () => {
+    if (!isInStock()) return false;
+    
+    if (isConfigurableProduct()) {
+      const requiredOptions = product.configurable_options || [];
+      const selectedOptionIds = Object.keys(selectedOptions);
+      return requiredOptions.length === selectedOptionIds.length;
+    }
+    
+    return true;
   };
 
   const getProductImage = () => {
@@ -200,6 +238,31 @@ const ProductDetailPage = () => {
             />
           )}
 
+          {isConfigurableProduct() && product.configurable_options && (
+            <div className="pdp-configurable-options">
+              <h3>Product Options</h3>
+              {product.configurable_options.map((option) => (
+                <div key={option.id} className="configurable-option">
+                  <label htmlFor={`option-${option.id}`}>{option.label}:</label>
+                  <select
+                    id={`option-${option.id}`}
+                    value={selectedOptions[option.id] || ''}
+                    onChange={(e) => handleOptionChange(option.id, e.target.value)}
+                    disabled={addingToCart}
+                    className="option-select"
+                  >
+                    <option value="">Please select...</option>
+                    {option.values.map((value) => (
+                      <option key={value.value_index} value={value.value_index}>
+                        {value.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
           {isInStock() && (
             <div className="pdp-add-to-cart">
               <div className="quantity-selector">
@@ -216,11 +279,15 @@ const ProductDetailPage = () => {
 
               <button
                 onClick={handleAddToCart}
-                disabled={addingToCart}
+                disabled={addingToCart || !canAddToCart()}
                 className="add-to-cart-button"
               >
                 {addingToCart ? 'Adding...' : 'Add to Cart'}
               </button>
+              
+              {isConfigurableProduct() && !canAddToCart() && isInStock() && (
+                <p className="options-required">Please select all required options</p>
+              )}
             </div>
           )}
 

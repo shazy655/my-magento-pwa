@@ -140,12 +140,19 @@ const ProductList = () => {
               <h3 className="product-name">{product.name}</h3>
               <p className="product-sku">SKU: {product.sku}</p>
               <p className="product-price">{getProductPrice(product)}</p>
-              {product.status === 1 && (
-                <span className="product-status available">Available</span>
-              )}
-              {product.status !== 1 && (
-                <span className="product-status unavailable">Unavailable</span>
-              )}
+              <div className="product-meta">
+                {product.__typename && (
+                  <span className={`product-type ${product.__typename.toLowerCase()}`}>
+                    {product.__typename === 'ConfigurableProduct' ? 'Configurable' : 'Simple'}
+                  </span>
+                )}
+                {product.status === 1 && (
+                  <span className="product-status available">In Stock</span>
+                )}
+                {product.status !== 1 && (
+                  <span className="product-status unavailable">Out of Stock</span>
+                )}
+              </div>
             </div>
           </div>
         ))}

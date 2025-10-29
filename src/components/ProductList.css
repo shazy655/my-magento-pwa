@@ -88,6 +88,13 @@
   margin: 0 0 10px 0;
 }
 
+.product-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .product-status {
   display: inline-block;
   padding: 4px 8px;
@@ -105,6 +112,25 @@
 .product-status.unavailable {
   background-color: #f8d7da;
   color: #721c24;
+}
+
+.product-type {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.product-type.configurableproduct {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.product-type.simpleproduct {
+  background-color: #d1ecf1;
+  color: #0c5460;
 }
 
 .pagination {
