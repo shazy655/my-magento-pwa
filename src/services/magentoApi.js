@@ -313,6 +313,21 @@ class MagentoApiService {
   }
 
   /**
+   * Get configurable product variants
+   * @param {string} sku - Product SKU
+   * @returns {Promise<Array>} Product variants
+   */
+  async getConfigurableProductVariants(sku) {
+    try {
+      const product = await this.getProductDetails(sku);
+      return product.variants || [];
+    } catch (error) {
+      console.error(`Error fetching variants for ${sku}:`, error);
+      return [];
+    }
+  }
+
+  /**
    * Create an empty cart using GraphQL mutation
    * @returns {Promise<string>} Cart ID (quote ID)
    */
@@ -363,8 +378,6 @@ class MagentoApiService {
     }
   }
 
-
-
   /**
    * Get or create a guest cart ID
    * Uses GraphQL createEmptyCart mutation by default
@@ -374,7 +387,7 @@ class MagentoApiService {
   async getGuestCartId(useRestApi = false) {
     let cartId = localStorage.getItem('guest_cart_id');
     if (!cartId) {
-      cartId =  await this.createEmptyCart();
+      cartId = await this.createEmptyCart();
     }
     return cartId;
   }
@@ -383,32 +396,12 @@ class MagentoApiService {
    * Add simple product to guest cart
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
-   * @param {string} productType - Product type (simple, configurable, etc.)
-   * @param {Object} configurableOptions - Configurable product options (for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
   async addSimpleProductToCart(sku, quantity = 1) {
     try {
       const cartId = await this.getGuestCartId();
       const mutation = `
-    mutation AddSimpleToCart($cartId: String!, $sku: String!, $quantity: Float!) {
-      addSimpleProductsToCart(
-        input: {
-          cart_id: $cartId
-          cart_items: [
-            {
-              data: {
-                sku: $sku
-                quantity: $quantity
-              }
-            }
-          }
-        }
-      `;
-              variables = { cartId, sku, quantity, configurableOptions };
-          } else {
-              // For simple products
-              mutation = `
         mutation AddSimpleProductToCart($cartId: String!, $sku: String!, $quantity: Float!) {
           addSimpleProductsToCart(
             input: {
@@ -436,33 +429,31 @@ class MagentoApiService {
           }
         }
       `;
-              variables = { cartId, sku, quantity };
-          }
 
       const variables = { cartId, sku, quantity };
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
       const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          mode: 'cors',
-          body: JSON.stringify({ query: mutation, variables }),
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query: mutation, variables }),
       });
 
       const result = await response.json();
 
       if (result.errors?.length) {
-          const message = result.errors.map(e => e.message).join('; ');
-          throw new Error(message);
+        const message = result.errors.map(e => e.message).join('; ');
+        throw new Error(message);
       }
 
       return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
     } catch (error) {
-        console.error('Error adding simple product to cart:', error);
-        throw error;
+      console.error('Error adding simple product to cart:', error);
+      throw error;
     }
   }
 
@@ -517,27 +508,26 @@ class MagentoApiService {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
       const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-          },
-          mode: 'cors',
-          body: JSON.stringify({ query: mutation, variables }),
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query: mutation, variables }),
       });
 
       const result = await response.json();
 
       if (result.errors?.length) {
-          const message = result.errors.map(e => e.message).join('; ');
-          throw new Error(message);
+        const message = result.errors.map(e => e.message).join('; ');
+        throw new Error(message);
       }
-  }
 
       return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
     } catch (error) {
-        console.error('Error adding configurable product to cart:', error);
-        throw error;
+      console.error('Error adding configurable product to cart:', error);
+      throw error;
     }
   }
 

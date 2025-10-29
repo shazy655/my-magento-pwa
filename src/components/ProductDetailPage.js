@@ -14,6 +14,7 @@ const ProductDetailPage = () => {
   const [cartMessage, setCartMessage] = useState(null);
   const [selectedOptions, setSelectedOptions] = useState({});
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [variants, setVariants] = useState([]);
 
   useEffect(() => {
     fetchProductDetails();
@@ -60,14 +61,23 @@ const ProductDetailPage = () => {
       }
       
       const productType = product.__typename || 'SimpleProduct';
-      const options = productType === 'ConfigurableProduct' 
-        ? Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
+      let skuToAdd = product.sku;
+      let options = [];
+      
+      if (productType === 'ConfigurableProduct') {
+        // For configurable products, use the selected variant's SKU if available
+        if (selectedVariant && selectedVariant.product) {
+          skuToAdd = selectedVariant.product.sku;
+        } else {
+          // Fallback to parent SKU with options
+          options = Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
             id: parseInt(optionId),
             value_index: parseInt(valueIndex)
-          }))
-        : [];
+          }));
+        }
+      }
       
-      await magentoApi.addToGuestCart(product.sku, quantity, productType, options);
+      await magentoApi.addToGuestCart(skuToAdd, quantity, productType, options);
       
       setCartMessage({
         type: 'success',
@@ -95,19 +105,18 @@ const ProductDetailPage = () => {
   };
 
   const handleOptionChange = (optionId, valueIndex) => {
-    setSelectedOptions(prev => ({
-      ...prev,
+    const newSelectedOptions = {
+      ...selectedOptions,
       [optionId]: valueIndex
-    }));
+    };
+    setSelectedOptions(newSelectedOptions);
     
     // Find the selected variant
     if (product.variants) {
       const variant = product.variants.find(v => 
         v.attributes.every(attr => {
-          const optionId = product.configurable_options.find(opt => opt.id === attr.code)?.id;
-          return selectedOptions[optionId] === attr.value_index || 
-                 (optionId === product.configurable_options.find(opt => opt.id === attr.code)?.id && 
-                  valueIndex === attr.value_index);
+          const option = product.configurable_options.find(opt => opt.id === attr.code);
+          return option && newSelectedOptions[option.id] === attr.value_index;
         })
       );
       setSelectedVariant(variant);
@@ -139,6 +148,13 @@ const ProductDetailPage = () => {
       return product.media_gallery[0].url;
     }
     return '/e-commerce.webp';
+  };
+
+  const getCurrentPrice = () => {
+    if (selectedVariant && selectedVariant.product) {
+      return selectedVariant.product.price_range?.minimum_price;
+    }
+    return product?.price_range?.minimum_price;
   };
 
   const getPrice = () => {
