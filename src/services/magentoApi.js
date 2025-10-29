@@ -8,6 +8,12 @@ import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
 const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
+
+// Use proxy in development to avoid CORS issues
+const isDevelopment = process.env.NODE_ENV === 'development';
+const PROXY_BASE_URL = isDevelopment ? '/api/magento' : MAGENTO_BASE_URL;
+const PROXY_API_ENDPOINT = `${PROXY_BASE_URL}/rest/V1`;
+const PROXY_GRAPHQL_ENDPOINT = `${PROXY_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
 
 class MagentoApiService {
@@ -23,7 +29,7 @@ class MagentoApiService {
     const { pageSize = 20, currentPage = 1 } = params;
 
     try {
-      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+      const url = isDevelopment ? PROXY_GRAPHQL_ENDPOINT : getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
       const query = `\
         query Products($pageSize: Int!, $currentPage: Int!) {\
@@ -125,7 +131,7 @@ class MagentoApiService {
    */
   async fetchProductBySku(sku) {
     try {
-      const url = getCorsProxyUrl(`${API_ENDPOINT}/products/${encodeURIComponent(sku)}`, USE_CORS_PROXY);
+      const url = isDevelopment ? `${PROXY_API_ENDPOINT}/products/${encodeURIComponent(sku)}` : getCorsProxyUrl(`${API_ENDPOINT}/products/${encodeURIComponent(sku)}`, USE_CORS_PROXY);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -163,7 +169,8 @@ class MagentoApiService {
     // Remove leading slash if present
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
 
-    return `${MAGENTO_BASE_URL}/media/catalog/product/${cleanPath}`;
+    const baseUrl = isDevelopment ? PROXY_BASE_URL : MAGENTO_BASE_URL;
+    return `${baseUrl}/media/catalog/product/${cleanPath}`;
   }
 
   // Convert an absolute media URL to a gallery file path if possible
