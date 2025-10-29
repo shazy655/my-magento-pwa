@@ -281,6 +281,54 @@ class MagentoApiService {
   }
 
   /**
+   * Create an empty cart using GraphQL createEmptyCart
+   * Returns a masked cart id usable with REST guest-carts endpoints
+   * @returns {Promise<string>} Cart ID (masked quote ID)
+   */
+  async createEmptyCartGql() {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `\
+        mutation CreateEmptyCart {\
+          createEmptyCart\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query: mutation }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const cartId = gql?.data?.createEmptyCart;
+      if (!cartId || typeof cartId !== 'string') {
+        throw new Error('Invalid cart id returned by GraphQL');
+      }
+
+      localStorage.setItem('guest_cart_id', cartId);
+      return cartId;
+    } catch (error) {
+      console.error('Error creating empty cart via GraphQL:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Create a guest cart
    * @returns {Promise<string>} Cart ID (quote ID)
    */
@@ -317,10 +365,17 @@ class MagentoApiService {
    */
   async getGuestCartId() {
     let cartId = localStorage.getItem('guest_cart_id');
-    if (!cartId) {
+    if (cartId) return cartId;
+
+    // Prefer GraphQL for cart creation; fall back to REST if needed
+    try {
+      cartId = await this.createEmptyCartGql();
+      return cartId;
+    } catch (e) {
+      // Fallback to REST guest-carts endpoint
       cartId = await this.createGuestCart();
+      return cartId;
     }
-    return cartId;
   }
 
   /**
