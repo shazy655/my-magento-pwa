@@ -397,6 +397,56 @@ class MagentoApiService {
       return [];
     }
   }
+
+  /**
+   * Create an empty cart using GraphQL mutation
+   * @returns {Promise<string>} Cart ID
+   */
+  async createEmptyCart() {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `
+        mutation {
+          createEmptyCart
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const cartId = gql.data?.createEmptyCart;
+      if (!cartId) {
+        throw new Error('Failed to create empty cart - no cart ID returned');
+      }
+
+      // Store cart ID in localStorage for persistence
+      localStorage.setItem('guest_cart_id', cartId);
+      return cartId;
+    } catch (error) {
+      console.error('Error creating empty cart:', error);
+      throw new Error(`Failed to create empty cart: ${error.message}`);
+    }
+  }
 }
 
 export default new MagentoApiService();

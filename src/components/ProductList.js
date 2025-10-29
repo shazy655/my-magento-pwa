@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
+import CartInfo from './CartInfo';
 import './ProductList.css';
 
 const ProductList = () => {
@@ -118,6 +119,8 @@ const ProductList = () => {
           Showing {products.length} of {totalCount} products
         </p>
       </div>
+
+      <CartInfo />
 
       <div className="product-grid">
         {products.map((product) => (
