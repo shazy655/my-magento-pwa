@@ -5,7 +5,8 @@
 
 import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
-const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
+// Use a relative base URL so the webpack-dev-server proxy can forward requests
+const MAGENTO_BASE_URL = '/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
 const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
