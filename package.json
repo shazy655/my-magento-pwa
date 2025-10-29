@@ -1,0 +1,30 @@
+{
+  "name": "pwa-studio-project",
+  "version": "1.0.0",
+  "description": "A PWA Studio project",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development",
+    "start": "npm run dev"
+  },
+  "keywords": ["pwa", "magento", "react"],
+  "author": "Cursor Agent <cursoragent@cursor.com>",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^17.0.0",
+    "react-dom": "^17.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-react": "^7.0.0",
+    "babel-loader": "^9.0.0",
+    "css-loader": "^6.0.0",
+    "html-webpack-plugin": "^5.0.0",
+    "style-loader": "^3.0.0",
+    "webpack": "^5.0.0",
+    "webpack-cli": "^5.0.0",
+    "webpack-dev-server": "^4.0.0"
+  }
+}
