@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import magentoApi from '../services/magentoApi';
 import './ProductList.css';
 
@@ -9,6 +10,8 @@ const ProductList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [pageSize] = useState(12);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchProducts();
@@ -115,7 +118,19 @@ const ProductList = () => {
 
       <div className="product-grid">
         {products.map((product) => (
-          <div key={product.id} className="product-card">
+          <div
+            key={product.id}
+            className="product-card"
+            onClick={() => navigate(`/product/${encodeURIComponent(product.sku)}`)}
+            style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                navigate(`/product/${encodeURIComponent(product.sku)}`);
+              }
+            }}
+          >
             <div className="product-image">
               <img
                 src={getProductImage(product)}

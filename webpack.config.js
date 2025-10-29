@@ -38,6 +38,7 @@ module.exports = {
     compress: true,
     port: 3000,
     open: true,
+    historyApiFallback: true,
     proxy: [
       {
         context: ['/magento2'],

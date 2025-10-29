@@ -11,6 +11,7 @@ const MAGENTO_BASE_URL = '/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
 const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = false; // No need for CORS proxy when using webpack proxy
+const LOCAL_STORAGE_GUEST_CART_ID_KEY = 'guest_cart_id';
 
 class MagentoApiService {
   /**
@@ -147,6 +148,187 @@ class MagentoApiService {
       console.error(`Error fetching product ${sku}:`, error);
       throw new Error(`Failed to fetch product ${sku}: ${error.message}`);
     }
+  }
+
+  /**
+   * Fetch stock status for a SKU
+   * @param {string} sku
+   * @returns {Promise<{sku: string, stock_status?: string, qty?: number, is_in_stock?: boolean}>}
+   */
+  async fetchStockStatus(sku) {
+    try {
+      // Preferred endpoint (provides stock_status and qty)
+      const statusUrl = getCorsProxyUrl(
+        `${API_ENDPOINT}/stockStatuses/${encodeURIComponent(sku)}`,
+        USE_CORS_PROXY
+      );
+
+      const response = await fetch(statusUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (response.ok) {
+        return await response.json();
+      }
+
+      // Fallback to legacy stockItems endpoint
+      const legacyUrl = getCorsProxyUrl(
+        `${API_ENDPOINT}/stockItems/${encodeURIComponent(sku)}`,
+        USE_CORS_PROXY
+      );
+      const legacyRes = await fetch(legacyUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        mode: 'cors',
+      });
+      if (!legacyRes.ok) {
+        throw new Error(`HTTP error! status: ${legacyRes.status}`);
+      }
+      const legacy = await legacyRes.json();
+      return {
+        sku,
+        qty: typeof legacy.qty === 'number' ? legacy.qty : undefined,
+        is_in_stock: !!legacy.is_in_stock,
+        stock_status: legacy.is_in_stock ? 'IN_STOCK' : 'OUT_OF_STOCK',
+      };
+    } catch (error) {
+      console.error(`Error fetching stock for ${sku}:`, error);
+      // Graceful fallback: unknown stock
+      return { sku };
+    }
+  }
+
+  /**
+   * Create a new guest cart and return its masked ID
+   * @returns {Promise<string>}
+   */
+  async createGuestCart() {
+    const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts`, USE_CORS_PROXY);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      mode: 'cors',
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create guest cart: ${response.status}`);
+    }
+    // Magento returns a JSON string (masked quote id)
+    const maskedId = await response.json();
+    if (typeof maskedId !== 'string' || maskedId.length === 0) {
+      throw new Error('Magento returned invalid guest cart id');
+    }
+    return maskedId;
+  }
+
+  getGuestCartId() {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_GUEST_CART_ID_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  setGuestCartId(cartId) {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_GUEST_CART_ID_KEY, cartId);
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  clearGuestCartId() {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_GUEST_CART_ID_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  async getOrCreateGuestCartId() {
+    const existing = this.getGuestCartId();
+    if (existing) return existing;
+    const created = await this.createGuestCart();
+    this.setGuestCartId(created);
+    return created;
+  }
+
+  /**
+   * Add an item to the guest cart (simple product)
+   * @param {{sku: string, qty: number}} params
+   * @returns {Promise<Object>} cart item result
+   */
+  async addItemToGuestCart({ sku, qty }) {
+    if (!sku) throw new Error('SKU is required');
+    const quantity = Number(qty) || 1;
+    const cartId = await this.getOrCreateGuestCartId();
+    const url = getCorsProxyUrl(
+      `${API_ENDPOINT}/guest-carts/${encodeURIComponent(cartId)}/items`,
+      USE_CORS_PROXY
+    );
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      mode: 'cors',
+      body: JSON.stringify({
+        cartItem: {
+          sku,
+          qty: quantity,
+          quote_id: cartId,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      // If the cart is invalid (e.g. expired), clear and retry once
+      if (response.status === 404 || response.status === 400) {
+        this.clearGuestCartId();
+        const newCartId = await this.getOrCreateGuestCartId();
+        const retryUrl = getCorsProxyUrl(
+          `${API_ENDPOINT}/guest-carts/${encodeURIComponent(newCartId)}/items`,
+          USE_CORS_PROXY
+        );
+        const retry = await fetch(retryUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          mode: 'cors',
+          body: JSON.stringify({
+            cartItem: {
+              sku,
+              qty: quantity,
+              quote_id: newCartId,
+            },
+          }),
+        });
+        if (!retry.ok) {
+          const text = await retry.text();
+          throw new Error(`Failed to add to cart: ${retry.status} ${text}`);
+        }
+        return await retry.json();
+      }
+      const text = await response.text();
+      throw new Error(`Failed to add to cart: ${response.status} ${text}`);
+    }
+
+    return await response.json();
   }
 
   /**
