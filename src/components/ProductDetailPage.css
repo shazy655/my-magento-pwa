@@ -140,6 +140,67 @@
   color: #555;
 }
 
+.pdp-configurable-options {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid #eee;
+}
+
+.configurable-option {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option-label {
+  font-weight: 600;
+  font-size: 16px;
+  color: #333;
+}
+
+.option-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.option-value {
+  padding: 10px 20px;
+  border: 2px solid #ddd;
+  background-color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s;
+  color: #333;
+}
+
+.option-value:hover:not(:disabled) {
+  border-color: #ff6b35;
+  background-color: #fff5f2;
+}
+
+.option-value.selected {
+  border-color: #ff6b35;
+  background-color: #ff6b35;
+  color: white;
+}
+
+.option-value:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.options-warning {
+  color: #e74c3c;
+  font-size: 14px;
+  margin: 0;
+  font-weight: 500;
+}
+
 .pdp-add-to-cart {
   display: flex;
   flex-direction: column;

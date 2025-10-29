@@ -39,14 +39,22 @@ class MagentoApiService {
           ) {\
             total_count\
             items {\
+              __typename\
               id\
               name\
               sku\
-          
+              stock_status\
               small_image { url }\
               price_range {\
                 minimum_price {\
                   regular_price { value currency }\
+                  final_price { value currency }\
+                }\
+              }\
+              ... on ConfigurableProduct {\
+                configurable_options {\
+                  id\
+                  label\
                 }\
               }\
             }\
@@ -89,10 +97,12 @@ class MagentoApiService {
           id: item.id,
           name: item.name,
           sku: item.sku,
+          __typename: item.__typename,
           // Maintain existing UI expectations
           price: regularPrice?.value ?? null,
           price_currency: regularPrice?.currency ?? 'USD',
-          status: typeof item.status === 'number' ? item.status : 1,
+          status: item.stock_status === 'IN_STOCK' ? 1 : 0,
+          stock_status: item.stock_status,
           // Emulate REST media_gallery_entries so UI stays unchanged
           media_gallery_entries: imageUrl
             ? [
@@ -209,6 +219,7 @@ class MagentoApiService {
         query GetProduct($sku: String!) {\
           products(filter: { sku: { eq: $sku } }) {\
             items {\
+              __typename\
               id\
               name\
               sku\
@@ -231,8 +242,31 @@ class MagentoApiService {
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
+                    label\
+                    value_index\
+                    swatch_data {\
+                      value\
+                    }\
+                  }\
+                }\
+                variants {\
+                  product {\
+                    id\
+                    sku\
+                    name\
+                    stock_status\
+                    price_range {\
+                      minimum_price {\
+                        regular_price { value currency }\
+                        final_price { value currency }\
+                      }\
+                    }\
+                  }\
+                  attributes {\
+                    code\
                     label\
                     value_index\
                   }\
@@ -346,69 +380,176 @@ class MagentoApiService {
   }
 
   /**
-   * Add item to guest cart
+   * Add simple product to guest cart
+   * @param {string} cartId - Cart ID
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
-   * @returns {Promise<Object>} Cart item response
+   * @returns {Promise<Object>} Cart response
    */
-  async addToGuestCart(sku, quantity = 1) {
-      try {
-          const cartId = await this.getGuestCartId();
-          const mutation = `
-    mutation AddToCart($cartId: String!, $sku: String!, $quantity: Float!) {
-      addSimpleProductsToCart(
-        input: {
-          cart_id: $cartId
-          cart_items: [
-            {
-              data: {
-                sku: $sku
-                quantity: $quantity
+  async addSimpleProductToCart(cartId, sku, quantity = 1) {
+    const mutation = `
+      mutation AddSimpleProductToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+        addSimpleProductsToCart(
+          input: {
+            cart_id: $cartId
+            cart_items: [
+              {
+                data: {
+                  sku: $sku
+                  quantity: $quantity
+                }
+              }
+            ]
+          }
+        ) {
+          cart {
+            items {
+              id
+              product {
+                name
+                sku
+              }
+              quantity
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = { cartId, sku, quantity };
+    const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      mode: 'cors',
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors?.length) {
+      const message = result.errors.map(e => e.message).join('; ');
+      throw new Error(message);
+    }
+
+    return result.data?.addSimpleProductsToCart?.cart;
+  }
+
+  /**
+   * Add configurable product to guest cart
+   * @param {string} cartId - Cart ID
+   * @param {string} parentSku - Parent product SKU
+   * @param {Object} selectedOptions - Selected configurable options {attribute_id: value_index}
+   * @param {number} quantity - Quantity to add
+   * @returns {Promise<Object>} Cart response
+   */
+  async addConfigurableProductToCart(cartId, parentSku, selectedOptions, quantity = 1) {
+    // Convert selected options object to array format expected by GraphQL
+    const selectedOptionsArray = Object.entries(selectedOptions).map(([option_id, value_id]) => ({
+      option_id: parseInt(option_id),
+      option_value: parseInt(value_id)
+    }));
+
+    const mutation = `
+      mutation AddConfigurableProductToCart(
+        $cartId: String!
+        $parentSku: String!
+        $quantity: Float!
+        $selectedOptions: [ConfigurableProductCartItemSelectedOptionValueInput!]!
+      ) {
+        addConfigurableProductsToCart(
+          input: {
+            cart_id: $cartId
+            cart_items: [
+              {
+                parent_sku: $parentSku
+                data: {
+                  sku: $parentSku
+                  quantity: $quantity
+                }
+                selected_options: $selectedOptions
+              }
+            ]
+          }
+        ) {
+          cart {
+            items {
+              id
+              product {
+                name
+                sku
+              }
+              quantity
+              ... on ConfigurableCartItem {
+                configurable_options {
+                  option_label
+                  value_label
+                }
               }
             }
-          ]
-        }
-      ) {
-        cart {
-          items {
-            id
-            product {
-              name
-              sku
-            }
-            quantity
           }
         }
       }
+    `;
+
+    const variables = { 
+      cartId, 
+      parentSku, 
+      quantity,
+      selectedOptions: selectedOptionsArray 
+    };
+    const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      mode: 'cors',
+      body: JSON.stringify({ query: mutation, variables }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors?.length) {
+      const message = result.errors.map(e => e.message).join('; ');
+      throw new Error(message);
     }
-  `;
 
-          const variables = { cartId, sku, quantity };
-          const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+    return result.data?.addConfigurableProductsToCart?.cart;
+  }
 
-          const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-              },
-              mode: 'cors',
-              body: JSON.stringify({ query: mutation, variables }),
-          });
-
-          const result = await response.json();
-
-          if (result.errors?.length) {
-              const message = result.errors.map(e => e.message).join('; ');
-              throw new Error(message);
-          }
-
-          return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
-      } catch (error) {
-          console.error('Error adding to guest cart:', error);
-          return [];
+  /**
+   * Add item to guest cart (auto-detects product type)
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @param {Object} selectedOptions - For configurable products: selected options {attribute_id: value_index}
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addToGuestCart(sku, quantity = 1, selectedOptions = null) {
+    try {
+      const cartId = await this.getGuestCartId();
+      
+      // Get product details to determine type
+      const product = await this.getProductDetails(sku);
+      
+      if (product.__typename === 'ConfigurableProduct') {
+        if (!selectedOptions || Object.keys(selectedOptions).length === 0) {
+          throw new Error('Please select all product options before adding to cart');
+        }
+        return await this.addConfigurableProductToCart(cartId, sku, selectedOptions, quantity);
+      } else {
+        return await this.addSimpleProductToCart(cartId, sku, quantity);
       }
-
+    } catch (error) {
+      console.error('Error adding to guest cart:', error);
+      throw error;
+    }
   }
 
   /**
