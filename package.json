@@ -8,12 +8,17 @@
     "dev": "webpack serve --mode development",
     "start": "npm run dev"
   },
-  "keywords": ["pwa", "magento", "react"],
+  "keywords": [
+    "pwa",
+    "magento",
+    "react"
+  ],
   "author": "Cursor Agent <cursoragent@cursor.com>",
   "license": "MIT",
   "dependencies": {
     "react": "^17.0.0",
-    "react-dom": "^17.0.0"
+    "react-dom": "^17.0.0",
+    "react-router-dom": "^5.3.4"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0",

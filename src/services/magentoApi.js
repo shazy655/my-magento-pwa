@@ -195,6 +195,207 @@ class MagentoApiService {
       currency: currency,
     }).format(price);
   }
+
+  /**
+   * Get detailed product information by SKU using GraphQL
+   * @param {string} sku - Product SKU
+   * @returns {Promise<Object>} Product details with stock information
+   */
+  async getProductDetails(sku) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const query = `\
+        query GetProduct($sku: String!) {\
+          products(filter: { sku: { eq: $sku } }) {\
+            items {\
+              id\
+              name\
+              sku\
+              description { html }\
+              short_description { html }\
+              status\
+              stock_status\
+              small_image { url }\
+              image { url }\
+              media_gallery {\
+                url\
+                label\
+              }\
+              price_range {\
+                minimum_price {\
+                  regular_price { value currency }\
+                  final_price { value currency }\
+                  discount { amount_off percent_off }\
+                }\
+              }\
+              ... on ConfigurableProduct {\
+                configurable_options {\
+                  id\
+                  label\
+                  values {\
+                    label\
+                    value_index\
+                  }\
+                }\
+              }\
+            }\
+          }\
+        }`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query,
+          variables: { sku },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const products = gql.data?.products?.items || [];
+      if (products.length === 0) {
+        throw new Error('Product not found');
+      }
+
+      return products[0];
+    } catch (error) {
+      console.error(`Error fetching product details for ${sku}:`, error);
+      throw new Error(`Failed to fetch product details: ${error.message}`);
+    }
+  }
+
+  /**
+   * Create a guest cart
+   * @returns {Promise<string>} Cart ID (quote ID)
+   */
+  async createGuestCart() {
+    try {
+      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts`, USE_CORS_PROXY);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const cartId = await response.json();
+      // Store cart ID in localStorage for persistence
+      localStorage.setItem('guest_cart_id', cartId);
+      return cartId;
+    } catch (error) {
+      console.error('Error creating guest cart:', error);
+      throw new Error(`Failed to create cart: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get or create a guest cart ID
+   * @returns {Promise<string>} Cart ID
+   */
+  async getGuestCartId() {
+    let cartId = localStorage.getItem('guest_cart_id');
+    if (!cartId) {
+      cartId = await this.createGuestCart();
+    }
+    return cartId;
+  }
+
+  /**
+   * Add item to guest cart
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addToGuestCart(sku, quantity = 1) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts/${cartId}/items`, USE_CORS_PROXY);
+
+      const cartItem = {
+        cartItem: {
+          sku: sku,
+          qty: quantity,
+          quote_id: cartId
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify(cartItem),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      // If cart is invalid, try creating a new one
+      if (error.message.includes('No such entity')) {
+        localStorage.removeItem('guest_cart_id');
+        return await this.addToGuestCart(sku, quantity);
+      }
+      throw new Error(`Failed to add item to cart: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get guest cart items
+   * @returns {Promise<Array>} Cart items
+   */
+  async getGuestCartItems() {
+    try {
+      const cartId = await this.getGuestCartId();
+      const url = getCorsProxyUrl(`${API_ENDPOINT}/guest-carts/${cartId}/items`, USE_CORS_PROXY);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching cart items:', error);
+      return [];
+    }
+  }
 }
 
 export default new MagentoApiService();
