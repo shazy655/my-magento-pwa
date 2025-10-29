@@ -27,42 +27,42 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const query = `\\
-        query Products($pageSize: Int!, $currentPage: Int!) {\\
-          products(\\
-            search: ""\\
-            pageSize: $pageSize\\
-            currentPage: $currentPage\\
-            filter: {
+      const query = `\
+        query Products($pageSize: Int!, $currentPage: Int!) {\
+          products(\
+            search: ""\
+            pageSize: $pageSize\
+            currentPage: $currentPage\
+            filter: {\
             
-            }\\
-          ) {\\
-            total_count\\
-            items {\\
-              id\\
-              name\\
-              sku\\
-              __typename\\
-              small_image { url }\\
-              price_range {\\
-                minimum_price {\\
-                  regular_price { value currency }\\
-                  final_price { value currency }\\
-                }\\
-              }\\
-              ... on ConfigurableProduct {\\
-                configurable_options {\\
-                  id\\
-                  label\\
-                  values {\\
-                    label\\
-                    value_index\\
-                  }\\
-                }\\
-              }\\
-            }\\
-            page_info { current_page page_size total_pages }\\
-          }\\
+            }\
+          ) {\
+            total_count\
+            items {\
+              id\
+              name\
+              sku\
+              __typename\
+              small_image { url }\
+              price_range {\
+                minimum_price {\
+                  regular_price { value currency }\
+                  final_price { value currency }\
+                }\
+              }\
+              ... on ConfigurableProduct {\
+                configurable_options {\
+                  id\
+                  label\
+                  values {\
+                    label\
+                    value_index\
+                  }\
+                }\
+              }\
+            }\
+            page_info { current_page page_size total_pages }\
+          }\
         }`;
 
       const response = await fetch(url, {
@@ -221,59 +221,59 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const query = `\\
-        query GetProduct($sku: String!) {\\
-          products(filter: { sku: { eq: $sku } }) {\\
-            items {\\
-              id\\
-              name\\
-              sku\\
-              __typename\\
-              description { html }\\
-              short_description { html }\\
-              stock_status\\
-              small_image { url }\\
-              image { url }\\
-              media_gallery {\\
-                url\\
-                label\\
-              }\\
-              price_range {\\
-                minimum_price {\\
-                  regular_price { value currency }\\
-                  final_price { value currency }\\
-                  discount { amount_off percent_off }\\
-                }\\
-              }\\
-              ... on ConfigurableProduct {\\
-                configurable_options {\\
-                  id\\
-                  label\\
-                  values {\\
-                    label\\
-                    value_index\\
-                  }\\
-                }\\
-                variants {\\
-                  product {\\
-                    sku\\
-                    name\\
-                    small_image { url }\\
-                    price_range {\\
-                      minimum_price {\\
-                        regular_price { value currency }\\
-                        final_price { value currency }\\
-                      }\\
-                    }\\
-                  }\\
-                  attributes {\\
-                    code\\
-                    value_index\\
-                  }\\
-                }\\
-              }\\
-            }\\
-          }\\
+      const query = `\
+        query GetProduct($sku: String!) {\
+          products(filter: { sku: { eq: $sku } }) {\
+            items {\
+              id\
+              name\
+              sku\
+              __typename\
+              description { html }\
+              short_description { html }\
+              stock_status\
+              small_image { url }\
+              image { url }\
+              media_gallery {\
+                url\
+                label\
+              }\
+              price_range {\
+                minimum_price {\
+                  regular_price { value currency }\
+                  final_price { value currency }\
+                  discount { amount_off percent_off }\
+                }\
+              }\
+              ... on ConfigurableProduct {\
+                configurable_options {\
+                  id\
+                  label\
+                  values {\
+                    label\
+                    value_index\
+                  }\
+                }\
+                variants {\
+                  product {\
+                    sku\
+                    name\
+                    small_image { url }\
+                    price_range {\
+                      minimum_price {\
+                        regular_price { value currency }\
+                        final_price { value currency }\
+                      }\
+                    }\
+                  }\
+                  attributes {\
+                    code\
+                    value_index\
+                  }\
+                }\
+              }\
+            }\
+          }\
         }`;
 
       const response = await fetch(url, {
