@@ -1,24 +1,19 @@
 import React from 'react';
+import ProductList from './components/ProductList';
 import './App.css';
 
 function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Welcome to PWA Studio</h1>
+        <h1>Magento 2 Product Catalog</h1>
         <p>
-          This is a Progressive Web App built with Magento PWA Studio.
+          Browse products from your Magento 2 store at localhost:8080
         </p>
-        <div className="features">
-          <h2>Features:</h2>
-          <ul>
-            <li>Progressive Web App capabilities</li>
-            <li>React-based frontend</li>
-            <li>Magento integration ready</li>
-            <li>Modern development workflow</li>
-          </ul>
-        </div>
       </header>
+      <main className="App-main">
+        <ProductList />
+      </main>
     </div>
   );
 }
