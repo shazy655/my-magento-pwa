@@ -7,6 +7,7 @@ import { getCorsProxyUrl, needsCorsProxy } from '../utils/corsProxy';
 
 const MAGENTO_BASE_URL = 'http://localhost:8080/magento2/pub';
 const API_ENDPOINT = `${MAGENTO_BASE_URL}/rest/V1`;
+const GRAPHQL_ENDPOINT = `${MAGENTO_BASE_URL}/graphql`;
 const USE_CORS_PROXY = needsCorsProxy(MAGENTO_BASE_URL);
 
 class MagentoApiService {
@@ -72,6 +73,102 @@ class MagentoApiService {
     } catch (error) {
       console.error('Error fetching products from Magento:', error);
       throw new Error(`Failed to fetch products: ${error.message}`);
+    }
+  }
+
+  /**
+   * Fetch products from Magento 2 via GraphQL
+   * @param {Object} params - Query parameters
+   * @param {number} params.pageSize - Number of products per page (default: 20)
+   * @param {number} params.currentPage - Current page number (default: 1)
+   * @param {string} params.search - Optional free-text search
+   * @returns {Promise<Object>} Products data normalized to REST-like shape
+   */
+  async fetchProductsGraphQL(params = {}) {
+    const {
+      pageSize = 20,
+      currentPage = 1,
+      search = ''
+    } = params;
+
+    const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+    const query = `
+      query GetProducts($pageSize: Int!, $currentPage: Int!, $search: String) {
+        products(
+          pageSize: $pageSize,
+          currentPage: $currentPage,
+          search: $search,
+          filter: {
+            status: { eq: "1" },
+            visibility: { eq: "4" }
+          }
+        ) {
+          total_count
+          items {
+            id
+            sku
+            name
+            status
+            small_image { url }
+            image { url }
+            media_gallery { url label disabled }
+            price_range {
+              minimum_price {
+                final_price { value currency }
+                regular_price { value currency }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = { pageSize, currentPage, search: search || null };
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query, variables })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const json = await response.json();
+
+      if (json.errors && json.errors.length > 0) {
+        const message = json.errors.map((e) => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      const products = json.data?.products;
+
+      const items = (products?.items || []).map((p) => {
+        const finalPrice = p?.price_range?.minimum_price?.final_price?.value ?? null;
+        const currency = p?.price_range?.minimum_price?.final_price?.currency ?? 'USD';
+        return {
+          ...p,
+          // Normalize to match existing UI expectations
+          price: finalPrice,
+          currency,
+        };
+      });
+
+      return {
+        items,
+        totalCount: products?.total_count ?? 0,
+        searchCriteria: { currentPage, pageSize }
+      };
+    } catch (error) {
+      console.error('Error fetching products via GraphQL:', error);
+      throw new Error(`Failed to fetch products via GraphQL: ${error.message}`);
     }
   }
 

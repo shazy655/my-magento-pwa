@@ -19,7 +19,7 @@ const ProductList = () => {
       setLoading(true);
       setError(null);
       
-      const response = await magentoApi.fetchProducts({
+      const response = await magentoApi.fetchProductsGraphQL({
         pageSize,
         currentPage
       });
@@ -44,7 +44,19 @@ const ProductList = () => {
   };
 
   const getProductImage = (product) => {
-    // Try to get the first media gallery entry or use a placeholder
+    // Prefer GraphQL image fields if available
+    if (product.small_image && product.small_image.url) {
+      return product.small_image.url;
+    }
+    if (product.image && product.image.url) {
+      return product.image.url;
+    }
+    if (product.media_gallery && Array.isArray(product.media_gallery) && product.media_gallery.length > 0) {
+      const first = product.media_gallery[0];
+      if (first && first.url) return first.url;
+    }
+
+    // REST: Try to get the first media gallery entry or use a placeholder
     if (product.media_gallery_entries && product.media_gallery_entries.length > 0) {
       const mainImage = product.media_gallery_entries.find(entry => 
         entry.types && entry.types.includes('image')
@@ -60,7 +72,16 @@ const ProductList = () => {
   };
 
   const getProductPrice = (product) => {
-    return product.price ? magentoApi.formatPrice(product.price) : 'Price not available';
+    if (product && typeof product.price === 'number') {
+      return magentoApi.formatPrice(product.price, product.currency || 'USD');
+    }
+    // GraphQL (without normalization) fallback
+    const finalPrice = product?.price_range?.minimum_price?.final_price?.value;
+    const currency = product?.price_range?.minimum_price?.final_price?.currency || 'USD';
+    if (typeof finalPrice === 'number') {
+      return magentoApi.formatPrice(finalPrice, currency);
+    }
+    return 'Price not available';
   };
 
   const totalPages = Math.ceil(totalCount / pageSize);
