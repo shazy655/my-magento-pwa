@@ -12,6 +12,8 @@ const ProductDetailPage = () => {
   const [quantity, setQuantity] = useState(1);
   const [addingToCart, setAddingToCart] = useState(false);
   const [cartMessage, setCartMessage] = useState(null);
+  const [selectedOptions, setSelectedOptions] = useState({});
+  const [selectedVariant, setSelectedVariant] = useState(null);
 
   useEffect(() => {
     fetchProductDetails();
@@ -36,7 +38,24 @@ const ProductDetailPage = () => {
       setAddingToCart(true);
       setCartMessage(null);
       
-      await magentoApi.addToGuestCart(product.sku, quantity);
+      // Configurable products require a selected variant
+      if (product?.configurable_options?.length) {
+        // Ensure all options are selected
+        const allSelected = product.configurable_options.every((opt) => selectedOptions[opt.id] != null);
+        if (!allSelected) {
+          throw new Error('Please select all options before adding to cart.');
+        }
+
+        const variant = findMatchingVariant(product, selectedOptions);
+        if (!variant?.product?.sku) {
+          throw new Error('Selected combination is unavailable. Please try a different selection.');
+        }
+
+        await magentoApi.addConfigurableToGuestCart(product.sku, variant.product.sku, quantity);
+      } else {
+        // Simple product
+        await magentoApi.addToGuestCart(product.sku, quantity);
+      }
       
       setCartMessage({
         type: 'success',
@@ -64,6 +83,9 @@ const ProductDetailPage = () => {
   };
 
   const getProductImage = () => {
+    if (selectedVariant?.product?.small_image?.url) {
+      return selectedVariant.product.small_image.url;
+    }
     if (product?.image?.url) {
       return product.image.url;
     }
@@ -77,7 +99,9 @@ const ProductDetailPage = () => {
   };
 
   const getPrice = () => {
-    const priceData = product?.price_range?.minimum_price;
+    // Prefer selected variant price if available (configurable)
+    const variantPriceData = selectedVariant?.product?.price_range?.minimum_price;
+    const priceData = variantPriceData || product?.price_range?.minimum_price;
     if (!priceData) return null;
 
     const regularPrice = priceData.regular_price;
@@ -93,8 +117,50 @@ const ProductDetailPage = () => {
   };
 
   const isInStock = () => {
+    if (selectedVariant?.product?.stock_status) {
+      return selectedVariant.product.stock_status === 'IN_STOCK';
+    }
     return product?.stock_status === 'IN_STOCK';
   };
+
+  const handleOptionChange = (optionId, valueIndex) => {
+    setSelectedOptions((prev) => ({ ...prev, [optionId]: valueIndex }));
+  };
+
+  const findMatchingVariant = (prod, selections) => {
+    const options = prod?.configurable_options || [];
+    const variants = prod?.variants || [];
+    if (!options.length || !variants.length) return null;
+
+    // Map selections by attribute_code for easier matching
+    const selectedByCode = {};
+    for (const opt of options) {
+      if (opt.attribute_code && selections[opt.id] != null) {
+        selectedByCode[opt.attribute_code] = selections[opt.id];
+      }
+    }
+
+    const requiredCodes = options.map((o) => o.attribute_code).filter(Boolean);
+    // Only attempt match when all required attributes are selected
+    const allSelected = requiredCodes.every((code) => selectedByCode[code] != null);
+    if (!allSelected) return null;
+
+    return variants.find((variant) =>
+      requiredCodes.every((code) => {
+        const attr = variant.attributes.find((a) => a.code === code);
+        return attr && attr.value_index === selectedByCode[code];
+      })
+    );
+  };
+
+  useEffect(() => {
+    if (product?.configurable_options?.length) {
+      const variant = findMatchingVariant(product, selectedOptions);
+      setSelectedVariant(variant || null);
+    } else {
+      setSelectedVariant(null);
+    }
+  }, [product, selectedOptions]);
 
   if (loading) {
     return (
@@ -200,6 +266,33 @@ const ProductDetailPage = () => {
             />
           )}
 
+          {/* Configurable options UI */}
+          {product?.configurable_options?.length > 0 && (
+            <div className="pdp-configurator">
+              {product.configurable_options.map((opt) => (
+                <div className="config-option" key={opt.id}>
+                  <label htmlFor={`opt-${opt.id}`}>{opt.label}</label>
+                  <select
+                    id={`opt-${opt.id}`}
+                    value={selectedOptions[opt.id] ?? ''}
+                    onChange={(e) => handleOptionChange(opt.id, Number(e.target.value))}
+                    disabled={addingToCart}
+                  >
+                    <option value="">Select {opt.label}</option>
+                    {opt.values.map((v) => (
+                      <option key={v.value_index} value={v.value_index}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+              {product.configurable_options.length > 0 && !selectedVariant && (
+                <div className="config-hint">Please select all options to see availability and price.</div>
+              )}
+            </div>
+          )}
+
           {isInStock() && (
             <div className="pdp-add-to-cart">
               <div className="quantity-selector">
@@ -216,7 +309,7 @@ const ProductDetailPage = () => {
 
               <button
                 onClick={handleAddToCart}
-                disabled={addingToCart}
+                disabled={addingToCart || (product?.configurable_options?.length > 0 && !selectedVariant)}
                 className="add-to-cart-button"
               >
                 {addingToCart ? 'Adding...' : 'Add to Cart'}

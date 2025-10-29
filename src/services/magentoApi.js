@@ -228,11 +228,31 @@ class MagentoApiService {
                   discount { amount_off percent_off }\
                 }\
               }\
+              __typename\
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
+                    label\
+                    value_index\
+                  }\
+                }\
+                variants {\
+                  product {\
+                    sku\
+                    stock_status\
+                    small_image { url }\
+                    price_range {\
+                      minimum_price {\
+                        regular_price { value currency }\
+                        final_price { value currency }\
+                      }\
+                    }\
+                  }\
+                  attributes {\
+                    code\
                     label\
                     value_index\
                   }\
@@ -409,6 +429,67 @@ class MagentoApiService {
           return [];
       }
 
+  }
+
+  /**
+   * Add configurable product to guest cart
+   * @param {string} parentSku - Configurable (parent) product SKU
+   * @param {string} variantSku - Selected variant (simple) product SKU
+   * @param {number} quantity - Quantity to add
+   * @returns {Promise<Array>} Cart items
+   */
+  async addConfigurableToGuestCart(parentSku, variantSku, quantity = 1) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+        mutation AddConfigurableToCart($cartId: String!, $parentSku: String!, $variantSku: String!, $quantity: Float!) {
+          addConfigurableProductsToCart(
+            input: {
+              cart_id: $cartId,
+              cart_items: [
+                {
+                  parent_sku: $parentSku,
+                  data: { sku: $variantSku, quantity: $quantity }
+                }
+              ]
+            }
+          ) {
+            cart {
+              items {
+                id
+                product { name sku }
+                quantity
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = { cartId, parentSku, variantSku, quantity };
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({ query: mutation, variables }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors?.length) {
+        const message = result.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
+    } catch (error) {
+      console.error('Error adding configurable product to guest cart:', error);
+      return [];
+    }
   }
 
   /**

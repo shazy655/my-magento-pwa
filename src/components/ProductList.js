@@ -59,7 +59,7 @@ const ProductList = () => {
     }
     
     // Fallback to placeholder image
-    return 'http://localhost:3000/e-commerce.webp';
+    return '/e-commerce.webp';
   };
 
   const getProductPrice = (product) => {
@@ -132,7 +132,7 @@ const ProductList = () => {
                 src={getProductImage(product)}
                 alt={product.name}
                 onError={(e) => {
-                  e.target.src = 'e-commerce.webp';
+                  e.target.src = '/e-commerce.webp';
                 }}
               />
             </div>
