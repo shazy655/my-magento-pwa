@@ -140,6 +140,60 @@
   color: #555;
 }
 
+.pdp-configurable-options {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.pdp-configurable-options h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.configurable-option {
+  margin-bottom: 15px;
+}
+
+.configurable-option:last-child {
+  margin-bottom: 0;
+}
+
+.configurable-option label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.configurable-option select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+  transition: border-color 0.3s;
+}
+
+.configurable-option select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.configurable-option select:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .pdp-add-to-cart {
   display: flex;
   flex-direction: column;

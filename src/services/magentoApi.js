@@ -27,31 +27,42 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const query = `\
-        query Products($pageSize: Int!, $currentPage: Int!) {\
-          products(\
-            search: ""\
-            pageSize: $pageSize\
-            currentPage: $currentPage\
-            filter: {\
+      const query = `\\
+        query Products($pageSize: Int!, $currentPage: Int!) {\\
+          products(\\
+            search: ""\\
+            pageSize: $pageSize\\
+            currentPage: $currentPage\\
+            filter: {
             
-            }\
-          ) {\
-            total_count\
-            items {\
-              id\
-              name\
-              sku\
-          
-              small_image { url }\
-              price_range {\
-                minimum_price {\
-                  regular_price { value currency }\
-                }\
-              }\
-            }\
-            page_info { current_page page_size total_pages }\
-          }\
+            }\\
+          ) {\\
+            total_count\\
+            items {\\
+              id\\
+              name\\
+              sku\\
+              __typename\\
+              small_image { url }\\
+              price_range {\\
+                minimum_price {\\
+                  regular_price { value currency }\\
+                  final_price { value currency }\\
+                }\\
+              }\\
+              ... on ConfigurableProduct {\\
+                configurable_options {\\
+                  id\\
+                  label\\
+                  values {\\
+                    label\\
+                    value_index\\
+                  }\\
+                }\\
+              }\\
+            }\\
+            page_info { current_page page_size total_pages }\\
+          }\\
         }`;
 
       const response = await fetch(url, {
@@ -83,15 +94,18 @@ class MagentoApiService {
       // Normalize to match existing UI expectations
       const normalizedItems = (products.items || []).map(item => {
         const regularPrice = item?.price_range?.minimum_price?.regular_price;
+        const finalPrice = item?.price_range?.minimum_price?.final_price;
         const imageUrl = item?.small_image?.url || null;
 
         return {
           id: item.id,
           name: item.name,
           sku: item.sku,
+          type: item.__typename,
           // Maintain existing UI expectations
           price: regularPrice?.value ?? null,
           price_currency: regularPrice?.currency ?? 'USD',
+          final_price: finalPrice?.value ?? regularPrice?.value,
           status: typeof item.status === 'number' ? item.status : 1,
           // Emulate REST media_gallery_entries so UI stays unchanged
           media_gallery_entries: imageUrl
@@ -102,6 +116,8 @@ class MagentoApiService {
                 },
               ]
             : [],
+          // Add configurable options for configurable products
+          configurable_options: item.configurable_options || [],
         };
       });
 
@@ -205,41 +221,59 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const query = `\
-        query GetProduct($sku: String!) {\
-          products(filter: { sku: { eq: $sku } }) {\
-            items {\
-              id\
-              name\
-              sku\
-              description { html }\
-              short_description { html }\
-              stock_status\
-              small_image { url }\
-              image { url }\
-              media_gallery {\
-                url\
-                label\
-              }\
-              price_range {\
-                minimum_price {\
-                  regular_price { value currency }\
-                  final_price { value currency }\
-                  discount { amount_off percent_off }\
-                }\
-              }\
-              ... on ConfigurableProduct {\
-                configurable_options {\
-                  id\
-                  label\
-                  values {\
-                    label\
-                    value_index\
-                  }\
-                }\
-              }\
-            }\
-          }\
+      const query = `\\
+        query GetProduct($sku: String!) {\\
+          products(filter: { sku: { eq: $sku } }) {\\
+            items {\\
+              id\\
+              name\\
+              sku\\
+              __typename\\
+              description { html }\\
+              short_description { html }\\
+              stock_status\\
+              small_image { url }\\
+              image { url }\\
+              media_gallery {\\
+                url\\
+                label\\
+              }\\
+              price_range {\\
+                minimum_price {\\
+                  regular_price { value currency }\\
+                  final_price { value currency }\\
+                  discount { amount_off percent_off }\\
+                }\\
+              }\\
+              ... on ConfigurableProduct {\\
+                configurable_options {\\
+                  id\\
+                  label\\
+                  values {\\
+                    label\\
+                    value_index\\
+                  }\\
+                }\\
+                variants {\\
+                  product {\\
+                    sku\\
+                    name\\
+                    small_image { url }\\
+                    price_range {\\
+                      minimum_price {\\
+                        regular_price { value currency }\\
+                        final_price { value currency }\\
+                      }\\
+                    }\\
+                  }\\
+                  attributes {\\
+                    code\\
+                    value_index\\
+                  }\\
+                }\\
+              }\\
+            }\\
+          }\\
         }`;
 
       const response = await fetch(url, {
@@ -286,9 +320,9 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const mutation = `\
-        mutation {\
-          createEmptyCart\
+      const mutation = `\\
+        mutation {\\
+          createEmptyCart\\
         }`;
 
       const response = await fetch(url, {
@@ -346,16 +380,16 @@ class MagentoApiService {
   }
 
   /**
-   * Add item to guest cart
+   * Add simple product to guest cart
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
    * @returns {Promise<Object>} Cart item response
    */
-  async addToGuestCart(sku, quantity = 1) {
-      try {
-          const cartId = await this.getGuestCartId();
-          const mutation = `
-    mutation AddToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+  async addSimpleProductToCart(sku, quantity = 1) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+    mutation AddSimpleToCart($cartId: String!, $sku: String!, $quantity: Float!) {
       addSimpleProductsToCart(
         input: {
           cart_id: $cartId
@@ -383,32 +417,126 @@ class MagentoApiService {
     }
   `;
 
-          const variables = { cartId, sku, quantity };
-          const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+      const variables = { cartId, sku, quantity };
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-          const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json',
-              },
-              mode: 'cors',
-              body: JSON.stringify({ query: mutation, variables }),
-          });
+      const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          mode: 'cors',
+          body: JSON.stringify({ query: mutation, variables }),
+      });
 
-          const result = await response.json();
+      const result = await response.json();
 
-          if (result.errors?.length) {
-              const message = result.errors.map(e => e.message).join('; ');
-              throw new Error(message);
-          }
-
-          return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
-      } catch (error) {
-          console.error('Error adding to guest cart:', error);
-          return [];
+      if (result.errors?.length) {
+          const message = result.errors.map(e => e.message).join('; ');
+          throw new Error(message);
       }
 
+      return result.data?.addSimpleProductsToCart?.cart?.items ?? [];
+    } catch (error) {
+        console.error('Error adding simple product to cart:', error);
+        throw error;
+    }
+  }
+
+  /**
+   * Add configurable product to guest cart
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @param {Array} selectedOptions - Selected variant options
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addConfigurableProductToCart(sku, quantity = 1, selectedOptions = []) {
+    try {
+      const cartId = await this.getGuestCartId();
+      const mutation = `
+    mutation AddConfigurableToCart($cartId: String!, $sku: String!, $quantity: Float!, $selectedOptions: [ConfigurableProductOptionInput!]!) {
+      addConfigurableProductsToCart(
+        input: {
+          cart_id: $cartId
+          cart_items: [
+            {
+              data: {
+                sku: $sku
+                quantity: $quantity
+              }
+              customizable_options: $selectedOptions
+            }
+          ]
+        }
+      ) {
+        cart {
+          items {
+            id
+            product {
+              name
+              sku
+            }
+            quantity
+            ... on ConfigurableCartItem {
+              configurable_options {
+                id
+                option_label
+                value_label
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+      const variables = { cartId, sku, quantity, selectedOptions };
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+          },
+          mode: 'cors',
+          body: JSON.stringify({ query: mutation, variables }),
+      });
+
+      const result = await response.json();
+
+      if (result.errors?.length) {
+          const message = result.errors.map(e => e.message).join('; ');
+          throw new Error(message);
+      }
+
+      return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
+    } catch (error) {
+        console.error('Error adding configurable product to cart:', error);
+        throw error;
+    }
+  }
+
+  /**
+   * Add item to guest cart (handles both simple and configurable products)
+   * @param {string} sku - Product SKU
+   * @param {number} quantity - Quantity to add
+   * @param {string} productType - Product type (SimpleProduct or ConfigurableProduct)
+   * @param {Array} selectedOptions - Selected variant options (for configurable products)
+   * @returns {Promise<Object>} Cart item response
+   */
+  async addToGuestCart(sku, quantity = 1, productType = 'SimpleProduct', selectedOptions = []) {
+    try {
+      if (productType === 'ConfigurableProduct') {
+        return await this.addConfigurableProductToCart(sku, quantity, selectedOptions);
+      } else {
+        return await this.addSimpleProductToCart(sku, quantity);
+      }
+    } catch (error) {
+      console.error('Error adding to guest cart:', error);
+      throw error;
+    }
   }
 
   /**
