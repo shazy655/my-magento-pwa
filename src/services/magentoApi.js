@@ -383,6 +383,8 @@ class MagentoApiService {
    * Add simple product to guest cart
    * @param {string} sku - Product SKU
    * @param {number} quantity - Quantity to add
+   * @param {string} productType - Product type (simple, configurable, etc.)
+   * @param {Object} configurableOptions - Configurable product options (for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
   async addSimpleProductToCart(sku, quantity = 1) {
@@ -400,22 +402,42 @@ class MagentoApiService {
                 quantity: $quantity
               }
             }
-          ]
-        }
-      ) {
-        cart {
-          items {
-            id
-            product {
-              name
-              sku
-            }
-            quantity
           }
         }
-      }
-    }
-  `;
+      `;
+              variables = { cartId, sku, quantity, configurableOptions };
+          } else {
+              // For simple products
+              mutation = `
+        mutation AddSimpleProductToCart($cartId: String!, $sku: String!, $quantity: Float!) {
+          addSimpleProductsToCart(
+            input: {
+              cart_id: $cartId
+              cart_items: [
+                {
+                  data: {
+                    sku: $sku
+                    quantity: $quantity
+                  }
+                }
+              ]
+            }
+          ) {
+            cart {
+              items {
+                id
+                product {
+                  name
+                  sku
+                }
+                quantity
+              }
+            }
+          }
+        }
+      `;
+              variables = { cartId, sku, quantity };
+          }
 
       const variables = { cartId, sku, quantity };
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
@@ -510,6 +532,7 @@ class MagentoApiService {
           const message = result.errors.map(e => e.message).join('; ');
           throw new Error(message);
       }
+  }
 
       return result.data?.addConfigurableProductsToCart?.cart?.items ?? [];
     } catch (error) {

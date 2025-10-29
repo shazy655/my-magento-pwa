@@ -25,6 +25,12 @@ const ProductDetailPage = () => {
       setError(null);
       const data = await magentoApi.getProductDetails(sku);
       setProduct(data);
+      
+      // If it's a configurable product, fetch variants
+      if (data.__typename === 'ConfigurableProduct' || data.configurable_options) {
+        const productVariants = await magentoApi.getConfigurableProductVariants(sku);
+        setVariants(productVariants);
+      }
     } catch (err) {
       setError(err.message);
       console.error('Failed to fetch product details:', err);
@@ -136,7 +142,7 @@ const ProductDetailPage = () => {
   };
 
   const getPrice = () => {
-    const priceData = product?.price_range?.minimum_price;
+    const priceData = getCurrentPrice();
     if (!priceData) return null;
 
     const regularPrice = priceData.regular_price;
