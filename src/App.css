@@ -1,50 +1,207 @@
-.App {
-  text-align: center;
-}
-
-.App-header {
-  background-color: #282c34;
-  padding: 20px;
-  color: white;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-}
-
-.App-header h1 {
-  margin-bottom: 20px;
-  color: #61dafb;
-}
-
-.App-header p {
-  margin-bottom: 30px;
-  font-size: 18px;
-}
-
-.features {
-  text-align: left;
-  max-width: 600px;
-  margin-top: 30px;
-}
-
-.features h2 {
-  color: #61dafb;
-  margin-bottom: 15px;
-}
-
-.features ul {
-  list-style-type: none;
+* {
+  box-sizing: border-box;
+  margin: 0;
   padding: 0;
 }
 
-.features li {
-  padding: 8px 0;
-  border-bottom: 1px solid #444;
+.App {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.features li:last-child {
-  border-bottom: none;
+.App-header {
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 30px 20px;
+  color: #333;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.App-header h1 {
+  margin-bottom: 10px;
+  color: #667eea;
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.App-header p {
+  margin-bottom: 20px;
+  font-size: 1rem;
+  color: #666;
+}
+
+.refresh-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.refresh-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.refresh-button:active {
+  transform: translateY(0);
+}
+
+.App-main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.loading,
+.error,
+.no-products {
+  text-align: center;
+  padding: 60px 20px;
+  background: white;
+  border-radius: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  margin: 20px;
+}
+
+.loading p {
+  font-size: 1.5rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.error {
+  background: #fff5f5;
+  border: 2px solid #fc8181;
+}
+
+.error h2 {
+  color: #e53e3e;
+  margin-bottom: 15px;
+  font-size: 1.8rem;
+}
+
+.error p {
+  color: #742a2a;
+  font-size: 1rem;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.no-products p {
+  font-size: 1.3rem;
+  color: #666;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 30px;
+  padding: 20px 0;
+}
+
+.product-card {
+  background: white;
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.product-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.product-image {
+  width: 100%;
+  height: 250px;
+  overflow: hidden;
+  background: #f7fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-card:hover .product-image img {
+  transform: scale(1.1);
+}
+
+.product-info {
+  padding: 20px;
+}
+
+.product-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  min-height: 2.8rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.product-sku {
+  font-size: 0.9rem;
+  color: #718096;
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.product-price {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #667eea;
+  margin-bottom: 10px;
+}
+
+.product-status {
+  font-size: 0.85rem;
+  color: #4a5568;
+  padding: 6px 12px;
+  background: #e6fffa;
+  border-radius: 20px;
+  display: inline-block;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .App-header h1 {
+    font-size: 2rem;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+  }
+
+  .product-image {
+    height: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .App-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .products-grid {
+    grid-template-columns: 1fr;
+  }
 }
