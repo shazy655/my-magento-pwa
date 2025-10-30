@@ -459,26 +459,28 @@ class MagentoApiService {
 
   /**
    * Add configurable product to guest cart
-   * @param {string} sku - Product SKU
+   * @param {string} parentSku - Parent product SKU (configurable product)
+   * @param {string} childSku - Child product SKU (selected variant)
    * @param {number} quantity - Quantity to add
-   * @param {Array} selectedOptions - Selected variant options
+   * @param {Array} selectedOptions - Selected variant options [{option_id, option_value}]
    * @returns {Promise<Object>} Cart item response
    */
-  async addConfigurableProductToCart(sku, quantity = 1, selectedOptions = []) {
+  async addConfigurableProductToCart(parentSku, childSku, quantity = 1, selectedOptions = []) {
     try {
       const cartId = await this.getGuestCartId();
       const mutation = `
-    mutation AddConfigurableToCart($cartId: String!, $sku: String!, $quantity: Float!, $selectedOptions: [ConfigurableProductOptionInput!]!) {
+    mutation AddConfigurableToCart($cartId: String!, $parentSku: String!, $childSku: String!, $quantity: Float!, $selectedOptions: [ConfigurableProductOptionsInput!]!) {
       addConfigurableProductsToCart(
         input: {
           cart_id: $cartId
           cart_items: [
             {
+              parent_sku: $parentSku
               data: {
-                sku: $sku
+                sku: $childSku
                 quantity: $quantity
               }
-              customizable_options: $selectedOptions
+              configurable_options: $selectedOptions
             }
           ]
         }
@@ -504,7 +506,7 @@ class MagentoApiService {
     }
   `;
 
-      const variables = { cartId, sku, quantity, selectedOptions };
+      const variables = { cartId, parentSku, childSku, quantity, selectedOptions };
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
       const response = await fetch(url, {
@@ -533,16 +535,25 @@ class MagentoApiService {
 
   /**
    * Add item to guest cart (handles both simple and configurable products)
-   * @param {string} sku - Product SKU
+   * @param {string} sku - Product SKU (for simple) or child SKU (for configurable)
    * @param {number} quantity - Quantity to add
    * @param {string} productType - Product type (SimpleProduct or ConfigurableProduct)
    * @param {Array} selectedOptions - Selected variant options (for configurable products)
+   * @param {string} parentSku - Parent SKU (required for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
-  async addToGuestCart(sku, quantity = 1, productType = 'SimpleProduct', selectedOptions = []) {
+  async addToGuestCart(sku, quantity = 1, productType = 'SimpleProduct', selectedOptions = [], parentSku = null) {
     try {
       if (productType === 'ConfigurableProduct') {
-        return await this.addConfigurableProductToCart(sku, quantity, selectedOptions);
+        if (!parentSku) {
+          throw new Error('Parent SKU is required for configurable products');
+        }
+        // Format options to match Magento's expected format: {option_id, option_value}
+        const formattedOptions = selectedOptions.map(opt => ({
+          option_id: opt.id || opt.option_id,
+          option_value: opt.value_index || opt.option_value
+        }));
+        return await this.addConfigurableProductToCart(parentSku, sku, quantity, formattedOptions);
       } else {
         return await this.addSimpleProductToCart(sku, quantity);
       }
