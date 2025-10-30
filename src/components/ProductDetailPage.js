@@ -63,21 +63,46 @@ const ProductDetailPage = () => {
       const productType = product.__typename || 'SimpleProduct';
       let skuToAdd = product.sku;
       let options = [];
+      let parentSku = null;
       
       if (productType === 'ConfigurableProduct') {
-        // For configurable products, use the selected variant's SKU if available
+        // For configurable products, we need both parent and child SKU
+        parentSku = product.sku; // The parent configurable product SKU
+        
+        // Use the selected variant's SKU as the child SKU
         if (selectedVariant && selectedVariant.product) {
           skuToAdd = selectedVariant.product.sku;
         } else {
-          // Fallback to parent SKU with options
-          options = Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
-            id: parseInt(optionId),
-            value_index: parseInt(valueIndex)
-          }));
+          // If no variant selected but options are, we need to find the matching variant
+          const allOptionsSelected = product.configurable_options?.every(option => 
+            selectedOptions[option.id]
+          );
+          
+          if (!allOptionsSelected) {
+            throw new Error('Please select all product options');
+          }
+          
+          // Find the variant that matches the selected options
+          const matchingVariant = variants.find(v => 
+            v.attributes.every(attr => {
+              const option = product.configurable_options.find(opt => opt.id === attr.code);
+              return option && selectedOptions[option.id] === attr.value_index;
+            })
+          );
+          
+          if (matchingVariant && matchingVariant.product) {
+            skuToAdd = matchingVariant.product.sku;
+          }
         }
+        
+        // Build options array with proper format
+        options = Object.entries(selectedOptions).map(([optionId, valueIndex]) => ({
+          id: parseInt(optionId),
+          value_index: parseInt(valueIndex)
+        }));
       }
       
-      await magentoApi.addToGuestCart(skuToAdd, quantity, productType, options);
+      await magentoApi.addToGuestCart(skuToAdd, quantity, productType, options, parentSku);
       
       setCartMessage({
         type: 'success',
