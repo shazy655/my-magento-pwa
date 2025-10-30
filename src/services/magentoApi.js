@@ -53,6 +53,7 @@ class MagentoApiService {
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
                     label\
@@ -248,6 +249,7 @@ class MagentoApiService {
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
                     label\
