@@ -580,6 +580,135 @@ class MagentoApiService {
       return [];
     }
   }
+
+  /**
+   * Fetch cart data using GraphQL
+   * @param {string} cartId - Cart ID
+   * @returns {Promise<Object>} Cart data with items and prices
+   */
+  async fetchCart(cartId) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const query = `
+        query GetCart($cartId: String!) {
+          cart(cart_id: $cartId) {
+            items {
+              id
+              product {
+                name
+                sku
+                small_image {
+                  url
+                }
+                price_range {
+                  minimum_price {
+                    regular_price {
+                      value
+                      currency
+                    }
+                  }
+                }
+              }
+              quantity
+            }
+            prices {
+              grand_total {
+                value
+                currency
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query,
+          variables: { cartId },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return gql.data?.cart || null;
+    } catch (error) {
+      console.error('Error fetching cart:', error);
+      throw new Error(`Failed to fetch cart: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get cart data from local storage or fetch via GraphQL
+   * @returns {Promise<Object>} Cart data
+   */
+  async getCartData() {
+    try {
+      // Try to get cart from local storage first
+      const cachedCart = localStorage.getItem('cart_data');
+      
+      if (cachedCart) {
+        const cartData = JSON.parse(cachedCart);
+        // Check if cache is not too old (e.g., less than 5 minutes)
+        const cacheTimestamp = localStorage.getItem('cart_data_timestamp');
+        const now = Date.now();
+        const fiveMinutes = 5 * 60 * 1000;
+        
+        if (cacheTimestamp && (now - parseInt(cacheTimestamp)) < fiveMinutes) {
+          console.log('Using cached cart data');
+          return cartData;
+        }
+      }
+
+      // If no cache or cache is old, fetch from GraphQL
+      const cartId = localStorage.getItem('guest_cart_id');
+      
+      if (!cartId) {
+        // No cart ID, return empty cart
+        return { items: [], prices: { grand_total: { value: 0, currency: 'USD' } } };
+      }
+
+      const cartData = await this.fetchCart(cartId);
+      
+      // Save to local storage
+      localStorage.setItem('cart_data', JSON.stringify(cartData));
+      localStorage.setItem('cart_data_timestamp', Date.now().toString());
+      
+      return cartData;
+    } catch (error) {
+      console.error('Error getting cart data:', error);
+      // Return cached data if available, even if old
+      const cachedCart = localStorage.getItem('cart_data');
+      if (cachedCart) {
+        return JSON.parse(cachedCart);
+      }
+      // Return empty cart as fallback
+      return { items: [], prices: { grand_total: { value: 0, currency: 'USD' } } };
+    }
+  }
+
+  /**
+   * Clear cart cache
+   */
+  clearCartCache() {
+    localStorage.removeItem('cart_data');
+    localStorage.removeItem('cart_data_timestamp');
+  }
 }
 
 export default new MagentoApiService();
