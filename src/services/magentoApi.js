@@ -53,6 +53,7 @@ class MagentoApiService {
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
                     label\
@@ -248,6 +249,7 @@ class MagentoApiService {
               ... on ConfigurableProduct {\
                 configurable_options {\
                   id\
+                  attribute_code\
                   label\
                   values {\
                     label\
@@ -462,14 +464,13 @@ class MagentoApiService {
    * @param {string} parentSku - Parent product SKU (configurable product)
    * @param {string} childSku - Child product SKU (selected variant)
    * @param {number} quantity - Quantity to add
-   * @param {Array} selectedOptions - Selected variant options [{option_id, option_value}]
    * @returns {Promise<Object>} Cart item response
    */
-  async addConfigurableProductToCart(parentSku, childSku, quantity = 1, selectedOptions = []) {
+  async addConfigurableProductToCart(parentSku, childSku, quantity = 1) {
     try {
       const cartId = await this.getGuestCartId();
       const mutation = `
-    mutation AddConfigurableToCart($cartId: String!, $parentSku: String!, $childSku: String!, $quantity: Float!, $selectedOptions: [ConfigurableProductOptionsInput!]!) {
+    mutation AddConfigurableToCart($cartId: String!, $parentSku: String!, $childSku: String!, $quantity: Float!) {
       addConfigurableProductsToCart(
         input: {
           cart_id: $cartId
@@ -480,7 +481,6 @@ class MagentoApiService {
                 sku: $childSku
                 quantity: $quantity
               }
-              configurable_options: $selectedOptions
             }
           ]
         }
@@ -506,7 +506,7 @@ class MagentoApiService {
     }
   `;
 
-      const variables = { cartId, parentSku, childSku, quantity, selectedOptions };
+      const variables = { cartId, parentSku, childSku, quantity };
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
       const response = await fetch(url, {
@@ -538,7 +538,7 @@ class MagentoApiService {
    * @param {string} sku - Product SKU (for simple) or child SKU (for configurable)
    * @param {number} quantity - Quantity to add
    * @param {string} productType - Product type (SimpleProduct or ConfigurableProduct)
-   * @param {Array} selectedOptions - Selected variant options (for configurable products)
+   * @param {Array} selectedOptions - Selected variant options (deprecated - no longer used)
    * @param {string} parentSku - Parent SKU (required for configurable products)
    * @returns {Promise<Object>} Cart item response
    */
@@ -548,12 +548,8 @@ class MagentoApiService {
         if (!parentSku) {
           throw new Error('Parent SKU is required for configurable products');
         }
-        // Format options to match Magento's expected format: {option_id, option_value}
-        const formattedOptions = selectedOptions.map(opt => ({
-          option_id: opt.id || opt.option_id,
-          option_value: opt.value_index || opt.option_value
-        }));
-        return await this.addConfigurableProductToCart(parentSku, sku, quantity, formattedOptions);
+        // No need to pass configurable_options - Magento derives them from the child SKU
+        return await this.addConfigurableProductToCart(parentSku, sku, quantity);
       } else {
         return await this.addSimpleProductToCart(sku, quantity);
       }

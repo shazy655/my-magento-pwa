@@ -85,7 +85,7 @@ const ProductDetailPage = () => {
           // Find the variant that matches the selected options
           const matchingVariant = variants.find(v => 
             v.attributes.every(attr => {
-              const option = product.configurable_options.find(opt => opt.id === attr.code);
+              const option = product.configurable_options.find(opt => opt.attribute_code === attr.code);
               return option && selectedOptions[option.id] === attr.value_index;
             })
           );
@@ -140,7 +140,7 @@ const ProductDetailPage = () => {
     if (product.variants) {
       const variant = product.variants.find(v => 
         v.attributes.every(attr => {
-          const option = product.configurable_options.find(opt => opt.id === attr.code);
+          const option = product.configurable_options.find(opt => opt.attribute_code === attr.code);
           return option && newSelectedOptions[option.id] === attr.value_index;
         })
       );
