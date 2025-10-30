@@ -716,6 +716,238 @@ class MagentoApiService {
     localStorage.removeItem('cart_data');
     localStorage.removeItem('cart_data_timestamp');
   }
+
+  /**
+   * Set guest email on cart
+   * @param {string} cartId - Cart ID
+   * @param {string} email - Guest email address
+   * @returns {Promise<Object>} Cart data with email
+   */
+  async setGuestEmailOnCart(cartId, email) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `
+        mutation SetGuestEmail($cartId: String!, $email: String!) {
+          setGuestEmailOnCart(
+            input: {
+              cart_id: $cartId
+              email: $email
+            }
+          ) {
+            cart {
+              email
+            }
+          }
+        }
+      `;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+          variables: { cartId, email },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return gql.data?.setGuestEmailOnCart?.cart;
+    } catch (error) {
+      console.error('Error setting guest email:', error);
+      throw new Error(`Failed to set guest email: ${error.message}`);
+    }
+  }
+
+  /**
+   * Set shipping address on cart
+   * @param {string} cartId - Cart ID
+   * @param {Object} address - Shipping address data
+   * @returns {Promise<Object>} Cart data with shipping addresses
+   */
+  async setShippingAddressOnCart(cartId, address) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `
+        mutation SetShippingAddress($cartId: String!, $address: ShippingAddressInput!) {
+          setShippingAddressesOnCart(
+            input: {
+              cart_id: $cartId
+              shipping_addresses: [$address]
+            }
+          ) {
+            cart {
+              shipping_addresses {
+                firstname
+                lastname
+                street
+                city
+                region {
+                  code
+                  label
+                }
+                postcode
+                country {
+                  code
+                  label
+                }
+                telephone
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        cartId,
+        address: {
+          address: {
+            firstname: address.firstname,
+            lastname: address.lastname,
+            street: address.street,
+            city: address.city,
+            region_id: address.region_id,
+            postcode: address.postcode,
+            country_code: address.country_code,
+            telephone: address.telephone,
+          },
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+          variables,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return gql.data?.setShippingAddressesOnCart?.cart;
+    } catch (error) {
+      console.error('Error setting shipping address:', error);
+      throw new Error(`Failed to set shipping address: ${error.message}`);
+    }
+  }
+
+  /**
+   * Set billing address on cart
+   * @param {string} cartId - Cart ID
+   * @param {Object} address - Billing address data
+   * @param {boolean} useForShipping - Whether to use billing address for shipping
+   * @returns {Promise<Object>} Cart data with billing address
+   */
+  async setBillingAddressOnCart(cartId, address, useForShipping = false) {
+    try {
+      const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
+
+      const mutation = `
+        mutation SetBillingAddress($cartId: String!, $address: BillingAddressInput!) {
+          setBillingAddressOnCart(
+            input: {
+              cart_id: $cartId
+              billing_address: $address
+            }
+          ) {
+            cart {
+              billing_address {
+                firstname
+                lastname
+                street
+                city
+                region {
+                  code
+                  label
+                }
+                postcode
+                country {
+                  code
+                  label
+                }
+                telephone
+              }
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        cartId,
+        address: {
+          address: {
+            firstname: address.firstname,
+            lastname: address.lastname,
+            street: address.street,
+            city: address.city,
+            region_id: address.region_id,
+            postcode: address.postcode,
+            country_code: address.country_code,
+            telephone: address.telephone,
+          },
+          use_for_shipping: useForShipping,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        body: JSON.stringify({
+          query: mutation,
+          variables,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const gql = await response.json();
+
+      if (gql.errors && gql.errors.length > 0) {
+        const message = gql.errors.map(e => e.message).join('; ');
+        throw new Error(message);
+      }
+
+      return gql.data?.setBillingAddressOnCart?.cart;
+    } catch (error) {
+      console.error('Error setting billing address:', error);
+      throw new Error(`Failed to set billing address: ${error.message}`);
+    }
+  }
 }
 
 export default new MagentoApiService();

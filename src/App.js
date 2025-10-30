@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Switch, Link } from 'react-router-dom';
 import ProductList from './components/ProductList';
 import ProductDetailPage from './components/ProductDetailPage';
 import Cart from './components/Cart';
+import Checkout from './components/Checkout';
 import Minicart from './components/Minicart';
 import './App.css';
 
@@ -30,6 +31,7 @@ function App() {
             <Route exact path="/" component={ProductList} />
             <Route path="/product/:sku" component={ProductDetailPage} />
             <Route path="/cart" component={Cart} />
+            <Route path="/checkout" component={Checkout} />
           </Switch>
         </main>
       </div>
