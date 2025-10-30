@@ -335,9 +335,9 @@ class MagentoApiService {
     try {
       const url = getCorsProxyUrl(GRAPHQL_ENDPOINT, USE_CORS_PROXY);
 
-      const mutation = `\\
-        mutation {\\
-          createEmptyCart\\
+      const mutation = `\
+        mutation {\
+          createEmptyCart\
         }`;
 
       const response = await fetch(url, {
