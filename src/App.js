@@ -1,7 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Switch, Link } from 'react-router-dom';
 import ProductList from './components/ProductList';
 import ProductDetailPage from './components/ProductDetailPage';
+import Cart from './components/Cart';
+import Minicart from './components/Minicart';
 import './App.css';
 
 function App() {
@@ -9,15 +11,25 @@ function App() {
     <Router>
       <div className="App">
         <header className="App-header">
-          <h1>Magento 2 Product Catalog</h1>
-          <p>
-            Browse products from your Magento 2 store at localhost:8080
-          </p>
+          <div className="App-header-content">
+            <div className="App-header-text">
+              <Link to="/" className="App-header-title">
+                <h1>Magento 2 Product Catalog</h1>
+              </Link>
+              <p>
+                Browse products from your Magento 2 store at localhost:8080
+              </p>
+            </div>
+            <div className="App-header-actions">
+              <Minicart />
+            </div>
+          </div>
         </header>
         <main className="App-main">
           <Switch>
             <Route exact path="/" component={ProductList} />
             <Route path="/product/:sku" component={ProductDetailPage} />
+            <Route path="/cart" component={Cart} />
           </Switch>
         </main>
       </div>
